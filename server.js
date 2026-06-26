@@ -181,7 +181,11 @@ function safeJoin(root, requestPath) {
 }
 
 function now() {
-  return new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  return new Intl.DateTimeFormat('ru-RU', {
+    timeZone: 'Europe/Moscow',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(new Date());
 }
 
 function normalizeLogin(login) {
