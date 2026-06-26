@@ -255,6 +255,14 @@ function getAgentFiles(agentId) {
   };
 }
 
+function getGatewayModelForWorkspace(workspaceId) {
+  const mapping = {
+    'sergey-agent': 'openclaw/worker',
+    'marina-agent': 'openclaw/pm'
+  };
+  return mapping[workspaceId] || 'openclaw/default';
+}
+
 async function createSession(userId, res) {
   const token = crypto.randomUUID();
   const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30);
@@ -430,7 +438,7 @@ async function askOpenClawGateway(workspace, userText, agentFiles) {
       signal: controller.signal,
       headers: headers,
       body: JSON.stringify({
-        model: 'openclaw/default',
+        model: getGatewayModelForWorkspace(workspace.id),
         user: workspace.id,
         messages: toOpenAiMessages(workspace, userText, agentFiles),
         temperature: 0.4,
@@ -500,7 +508,9 @@ async function handleMessage(req, res) {
     const reply = (await askOpenClawGateway(ctx.workspace, text, agentFiles)) || generateWorkflowReply(ctx.workspace, text, agentFiles);
     tryWorkflowAction(ctx.workspace, text, reply);
     addMessage(ctx.workspace, 'agent', reply, 'Агент ' + ctx.workspace.name);
-    ctx.workspace.model = WORKFLOW_PROVIDER === 'openclaw' ? 'OpenClaw workflow' : ctx.workspace.model;
+    ctx.workspace.model = WORKFLOW_PROVIDER === 'openclaw'
+      ? getGatewayModelForWorkspace(ctx.workspace.id)
+      : ctx.workspace.model;
     await saveWorkspace(ctx.workspace);
     sendJson(res, 200, { workspace: ctx.workspace, reply: reply });
   } catch {
