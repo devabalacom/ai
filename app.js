@@ -1,11 +1,11 @@
-const STORAGE_KEY = 'agenthub-mvp-state-v2';
+const STORAGE_KEY = 'agenthub-client-state-v2';
 
 const demoUsers = [
   { id: 'sergey', name: 'Сергей', title: 'Support lead', password: 'demo', agentId: 'sergey-agent' },
   { id: 'marina', name: 'Марина', title: 'Sales lead', password: 'demo', agentId: 'marina-agent' }
 ];
 
-const initialAgents = {
+const fallbackWorkspaces = {
   'sergey-agent': {
     id: 'sergey-agent',
     name: 'Сергей',
@@ -43,9 +43,11 @@ const initialAgents = {
 };
 
 const state = {
+  apiAvailable: false,
   currentUser: null,
-  currentAgentId: 'sergey-agent',
-  agents: structuredClone(initialAgents),
+  workspace: null,
+  users: demoUsers,
+  localWorkspaces: structuredClone(fallbackWorkspaces),
   pendingTask: false
 };
 
@@ -80,54 +82,59 @@ const el = {
   promptInput: document.getElementById('prompt-input')
 };
 
-function persist() {
-  const payload = {
-    currentUser: state.currentUser?.id ?? null,
-    currentAgentId: state.currentAgentId,
-    agents: state.agents
-  };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+function persistLocal() {
+  if (state.apiAvailable) return;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    currentUserId: state.currentUser?.id ?? null,
+    workspaces: state.localWorkspaces
+  }));
 }
 
-function restore() {
+function restoreLocal() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) return;
   try {
     const saved = JSON.parse(raw);
-    if (saved?.agents) state.agents = saved.agents;
-    if (saved?.currentAgentId && state.agents[saved.currentAgentId]) state.currentAgentId = saved.currentAgentId;
-    if (saved?.currentUser) state.currentUser = demoUsers.find((user) => user.id === saved.currentUser) ?? null;
+    if (saved?.workspaces) state.localWorkspaces = saved.workspaces;
+    if (saved?.currentUserId) {
+      state.currentUser = state.users.find((user) => user.id === saved.currentUserId) ?? null;
+      state.workspace = state.currentUser ? state.localWorkspaces[state.currentUser.agentId] ?? null : null;
+    }
   } catch {
     localStorage.removeItem(STORAGE_KEY);
   }
+}
+
+async function apiRequest(path, options = {}) {
+  const response = await fetch(path, {
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers || {})
+    },
+    ...options
+  });
+
+  if (!response.ok) {
+    const error = new Error('Request failed');
+    error.status = response.status;
+    throw error;
+  }
+
+  const text = await response.text();
+  return text ? JSON.parse(text) : null;
+}
+
+function currentWorkspace() {
+  return state.workspace || (state.currentUser ? state.localWorkspaces[state.currentUser.agentId] : null);
 }
 
 function now() {
   return new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 }
 
-function currentAgent() {
-  return state.agents[state.currentAgentId];
-}
-
-function addMessage(role, text, author = role === 'user' ? state.currentUser.name : `Агент ${currentAgent().name}`) {
-  currentAgent().messages.push({ id: crypto.randomUUID(), role, author, time: now(), text });
-}
-
-function addTask(title, details) {
-  currentAgent().tasks.unshift({
-    id: crypto.randomUUID(),
-    title,
-    details,
-    status: 'todo'
-  });
-  currentAgent().tasks = currentAgent().tasks.slice(0, 8);
-}
-
-function setAgentMode(mode) {
-  currentAgent().mode = mode;
-  render();
-  persist();
+function statusBadge(status) {
+  return `<span class="badge ${status}">${status}</span>`;
 }
 
 function renderAuthState() {
@@ -137,42 +144,33 @@ function renderAuthState() {
 }
 
 function renderUserSelect() {
-  el.userSelect.innerHTML = demoUsers.map((user) => `<option value="${user.id}">${user.name} · ${user.title}</option>`).join('');
-  if (!el.userSelect.value && demoUsers[0]) {
-    el.userSelect.value = demoUsers[0].id;
-  }
+  el.userSelect.innerHTML = state.users.map((user) => `<option value="${user.id}">${user.name} · ${user.title}</option>`).join('');
+  if (!el.userSelect.value && state.users[0]) el.userSelect.value = state.users[0].id;
 }
 
-function renderHeader() {
-  const agent = currentAgent();
+function renderWorkspace() {
+  const workspace = currentWorkspace();
+  if (!state.currentUser || !workspace) return;
+
   el.profileName.textContent = state.currentUser.name;
   el.profileMeta.textContent = `${state.currentUser.title} · личное пространство`;
-  el.workspaceTitle.textContent = `${agent.name} · ${agent.title}`;
+  el.workspaceTitle.textContent = `${workspace.name} · ${workspace.title}`;
   el.workspaceHint.textContent = 'Сотрудник видит только свой чат, свои задачи и свой workflow.';
-  el.modelLabel.textContent = agent.model;
-  el.modeLabel.textContent = agent.mode;
-  el.taskCount.textContent = String(agent.tasks.filter((task) => task.status !== 'done').length);
+  el.modelLabel.textContent = workspace.model;
+  el.modeLabel.textContent = workspace.mode;
+  el.taskCount.textContent = String(workspace.tasks.filter((task) => task.status !== 'done').length);
   el.chatSubtitle.textContent = 'Личный чат сотрудника и его агента.';
-}
 
-function renderModes() {
-  const agent = currentAgent();
   const modes = ['answer', 'suggest', 'approve', 'execute'];
   el.modeSwitch.innerHTML = modes.map((mode) => `
-    <button class="mode-chip ${mode === agent.mode ? 'active' : ''}" data-mode="${mode}" type="button">${mode}</button>
+    <button class="mode-chip ${mode === workspace.mode ? 'active' : ''}" data-mode="${mode}" type="button">${mode}</button>
   `).join('');
-}
 
-function renderQuickActions() {
-  const agent = currentAgent();
-  el.quickActions.innerHTML = agent.quickActions.map((item) => `
+  el.quickActions.innerHTML = workspace.quickActions.map((item) => `
     <button class="quick-chip" type="button" data-quick="${item}">${item}</button>
   `).join('');
-}
 
-function renderMessages() {
-  const agent = currentAgent();
-  el.messages.innerHTML = agent.messages.map((message) => `
+  el.messages.innerHTML = workspace.messages.map((message) => `
     <article class="message ${message.role}">
       <div class="message-meta">
         <span>${message.author}</span>
@@ -182,15 +180,8 @@ function renderMessages() {
     </article>
   `).join('');
   el.messages.scrollTop = el.messages.scrollHeight;
-}
 
-function statusBadge(status) {
-  return `<span class="badge ${status}">${status}</span>`;
-}
-
-function renderTasks() {
-  const agent = currentAgent();
-  el.taskList.innerHTML = agent.tasks.map((task) => `
+  el.taskList.innerHTML = workspace.tasks.map((task) => `
     <div class="task-item">
       <div class="task-top">
         <div>
@@ -206,15 +197,12 @@ function renderTasks() {
       </div>
     </div>
   `).join('');
-}
 
-function renderWorkflow() {
-  const agent = currentAgent();
   const workflow = [
-    { label: 'Current mode', value: agent.mode },
-    { label: 'Open tasks', value: String(agent.tasks.filter((task) => task.status !== 'done').length) },
-    { label: 'Chat history', value: String(agent.messages.length) },
-    { label: 'Agent', value: agent.name }
+    { label: 'Current mode', value: workspace.mode },
+    { label: 'Open tasks', value: String(workspace.tasks.filter((task) => task.status !== 'done').length) },
+    { label: 'Chat history', value: String(workspace.messages.length) },
+    { label: 'Agent', value: workspace.name }
   ];
 
   el.workflowGrid.innerHTML = workflow.map((item) => `
@@ -233,54 +221,195 @@ function render() {
   }
 
   renderAuthState();
-  renderHeader();
-  renderModes();
-  renderQuickActions();
-  renderMessages();
-  renderTasks();
-  renderWorkflow();
-  persist();
+  renderWorkspace();
+  persistLocal();
 }
 
-function processUserMessage(message) {
-  const agent = currentAgent();
-  addMessage('user', message, state.currentUser.name);
+function addLocalMessage(workspace, role, text, author) {
+  workspace.messages.push({ id: crypto.randomUUID(), role, author, time: now(), text });
+  workspace.messages = workspace.messages.slice(-50);
+}
 
+function addLocalTask(workspace, title, details) {
+  workspace.tasks.unshift({ id: crypto.randomUUID(), title, details, status: 'todo' });
+  workspace.tasks = workspace.tasks.slice(0, 12);
+}
+
+function generateReply(workspace, message) {
   const lower = message.toLowerCase();
-  let reply = '';
 
   if (/задач|task|сделай/.test(lower)) {
     const title = message.replace(/создай|сделай|задачу|task/gi, '').trim() || 'Новая задача';
-    addTask(title, 'Создано из чата.');
-    reply = agent.mode === 'execute'
+    addLocalTask(workspace, title, 'Создано из чата.');
+    return workspace.mode === 'execute'
       ? `Готово: задача «${title}» добавлена.`
       : `Могу добавить задачу «${title}». Подтверди, если ок.`;
-  } else if (/прайс|цена|документ|найди|поиск/.test(lower)) {
-    reply = 'Понял. В MVP это мок-поиск: найду релевантный шаблон, прайс или документ в личной базе.';
-  } else if (/статус|блок|риск/.test(lower)) {
-    reply = 'Вижу текущий статус: есть открытые задачи и один блокер, если он есть в твоей очереди.';
-  } else if (/привет|hello|hi/.test(lower)) {
-    reply = agent.mode === 'answer'
-      ? 'На связи. Пиши вопрос, задачу или короткую команду.'
-      : 'Готов. Могу предложить решение, спланировать шаги или выполнить безопасный сценарий.';
-  } else if (agent.mode === 'suggest') {
-    reply = 'Сначала соберу контекст, потом предложу черновик и только затем действие.';
-  } else if (agent.mode === 'execute') {
-    reply = 'Выполняю безопасный сценарий и фиксирую результат в текущем workspace.';
-  } else {
-    reply = 'Принял. Могу отвечать, искать, создавать задачи и вести твой личный workflow.';
   }
 
-  addMessage('agent', reply, `Агент ${agent.name}`);
+  if (/прайс|цена|документ|найди|поиск/.test(lower)) {
+    return 'Понял. В этом MVP я найду релевантный шаблон, прайс или документ в личной базе.';
+  }
+
+  if (/статус|блок|риск/.test(lower)) {
+    return 'Вижу текущий статус: есть открытые задачи и один блокер, если он есть в твоей очереди.';
+  }
+
+  if (/привет|hello|hi/.test(lower)) {
+    return workspace.mode === 'answer'
+      ? 'На связи. Пиши вопрос, задачу или короткую команду.'
+      : 'Готов. Могу предложить решение, спланировать шаги или выполнить безопасный сценарий.';
+  }
+
+  if (workspace.mode === 'suggest') {
+    return 'Сначала соберу контекст, потом предложу черновик и только затем действие.';
+  }
+
+  if (workspace.mode === 'execute') {
+    return 'Выполняю безопасный сценарий и фиксирую результат в текущем workspace.';
+  }
+
+  return 'Принял. Могу отвечать, искать, создавать задачи и вести твой личный workflow.';
+}
+
+async function detectBackend() {
+  try {
+    const response = await fetch('/api/health', { cache: 'no-store', credentials: 'include' });
+    state.apiAvailable = response.ok;
+  } catch {
+    state.apiAvailable = false;
+  }
+}
+
+async function loadUsers() {
+  if (state.apiAvailable) {
+    try {
+      state.users = await apiRequest('/api/users');
+      return;
+    } catch {
+      state.apiAvailable = false;
+    }
+  }
+  state.users = demoUsers;
+}
+
+async function loadSession() {
+  if (state.apiAvailable) {
+    try {
+      const me = await apiRequest('/api/me');
+      state.currentUser = me.user;
+      state.workspace = me.workspace;
+      return Boolean(state.currentUser && state.workspace);
+    } catch (error) {
+      if (error.status !== 401) throw error;
+    }
+  }
+
+  restoreLocal();
+  return Boolean(state.currentUser && state.workspace);
+}
+
+async function loginUser(login, password) {
+  if (state.apiAvailable) {
+    const result = await apiRequest('/api/login', {
+      method: 'POST',
+      body: JSON.stringify({ login, password })
+    });
+    state.currentUser = result.user;
+    state.workspace = result.workspace;
+    return;
+  }
+
+  const user = demoUsers.find((item) => item.id === login);
+  if (!user || user.password !== password) throw new Error('invalid_credentials');
+  state.currentUser = user;
+  state.workspace = structuredClone(state.localWorkspaces[user.agentId]);
+  persistLocal();
+}
+
+async function logoutUser() {
+  if (state.apiAvailable) {
+    try {
+      await apiRequest('/api/logout', { method: 'POST', body: '{}' });
+    } catch {
+      // ignore
+    }
+  }
+  state.currentUser = null;
+  state.workspace = null;
+  if (!state.apiAvailable) localStorage.removeItem(STORAGE_KEY);
   render();
 }
 
-function sendCurrentMessage() {
-  const message = el.messageInput.value.trim();
-  if (!message) return;
-  processUserMessage(message);
-  el.messageInput.value = '';
-  el.messageInput.focus();
+async function setWorkspaceMode(mode) {
+  if (!state.currentUser) return;
+  if (state.apiAvailable) {
+    const result = await apiRequest('/api/workspace/mode', {
+      method: 'POST',
+      body: JSON.stringify({ mode })
+    });
+    state.workspace = result.workspace;
+  } else {
+    const workspace = currentWorkspace();
+    workspace.mode = mode;
+    state.workspace = workspace;
+    persistLocal();
+  }
+  render();
+}
+
+async function sendMessage(text) {
+  if (!state.currentUser) return;
+  if (state.apiAvailable) {
+    const result = await apiRequest('/api/message', {
+      method: 'POST',
+      body: JSON.stringify({ text })
+    });
+    state.workspace = result.workspace;
+  } else {
+    const workspace = currentWorkspace();
+    addLocalMessage(workspace, 'user', text, state.currentUser.name);
+    const reply = generateReply(workspace, text);
+    addLocalMessage(workspace, 'agent', reply, 'Агент ' + workspace.name);
+    state.workspace = workspace;
+    persistLocal();
+  }
+  render();
+}
+
+async function createTask(title) {
+  if (!state.currentUser) return;
+  if (state.apiAvailable) {
+    const result = await apiRequest('/api/tasks', {
+      method: 'POST',
+      body: JSON.stringify({ title, details: 'Создано вручную через панель.' })
+    });
+    state.workspace = result.workspace;
+  } else {
+    const workspace = currentWorkspace();
+    addLocalTask(workspace, title, 'Создано вручную через панель.');
+    state.workspace = workspace;
+    persistLocal();
+  }
+  render();
+}
+
+async function setTaskStatus(taskId, status) {
+  if (!state.currentUser) return;
+  if (state.apiAvailable) {
+    const result = await apiRequest('/api/tasks/' + taskId, {
+      method: 'PATCH',
+      body: JSON.stringify({ status })
+    });
+    state.workspace = result.workspace;
+  } else {
+    const workspace = currentWorkspace();
+    const task = workspace.tasks.find((item) => item.id === taskId);
+    if (!task) return;
+    task.status = status;
+    state.workspace = workspace;
+    persistLocal();
+  }
+  render();
 }
 
 function bindEvents() {
@@ -289,19 +418,15 @@ function bindEvents() {
   el.password.addEventListener('input', clearPasswordError);
   el.userSelect.addEventListener('change', clearPasswordError);
 
-  el.loginForm.addEventListener('submit', (event) => {
+  el.loginForm.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const user = demoUsers.find((item) => item.id === el.userSelect.value);
-    if (!user || el.password.value !== user.password) {
+    try {
+      await loginUser(String(el.userSelect.value || '').trim(), el.password.value);
+      render();
+    } catch {
       el.password.setCustomValidity('Неверный demo-пароль');
       el.password.reportValidity();
-      return;
     }
-
-    el.password.setCustomValidity('');
-    state.currentUser = user;
-    state.currentAgentId = user.agentId;
-    render();
   });
 
   el.demoFill.addEventListener('click', () => {
@@ -311,16 +436,13 @@ function bindEvents() {
   });
 
   el.logoutBtn.addEventListener('click', () => {
-    state.currentUser = null;
-    state.currentAgentId = demoUsers[0].agentId;
-    localStorage.removeItem(STORAGE_KEY);
-    render();
+    logoutUser();
   });
 
-  el.modeSwitch.addEventListener('click', (event) => {
+  el.modeSwitch.addEventListener('click', async (event) => {
     const button = event.target.closest('[data-mode]');
     if (!button) return;
-    setAgentMode(button.dataset.mode);
+    await setWorkspaceMode(button.dataset.mode);
   });
 
   el.quickActions.addEventListener('click', (event) => {
@@ -330,29 +452,35 @@ function bindEvents() {
     el.messageInput.focus();
   });
 
-  el.composer.addEventListener('submit', (event) => {
+  el.composer.addEventListener('submit', async (event) => {
     event.preventDefault();
-    sendCurrentMessage();
+    const message = el.messageInput.value.trim();
+    if (!message) return;
+    el.messageInput.value = '';
+    await sendMessage(message);
   });
 
-  el.sendBtn.addEventListener('click', () => {
-    sendCurrentMessage();
+  el.sendBtn.addEventListener('click', async () => {
+    const message = el.messageInput.value.trim();
+    if (!message) return;
+    el.messageInput.value = '';
+    await sendMessage(message);
   });
 
-  el.messageInput.addEventListener('keydown', (event) => {
+  el.messageInput.addEventListener('keydown', async (event) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-      sendCurrentMessage();
+      const message = el.messageInput.value.trim();
+      if (!message) return;
+      el.messageInput.value = '';
+      await sendMessage(message);
     }
   });
 
-  el.taskList.addEventListener('click', (event) => {
+  el.taskList.addEventListener('click', async (event) => {
     const button = event.target.closest('[data-task-id][data-task-status]');
     if (!button) return;
-    const task = currentAgent().tasks.find((item) => item.id === button.dataset.taskId);
-    if (!task) return;
-    task.status = button.dataset.taskStatus;
-    render();
+    await setTaskStatus(button.dataset.taskId, button.dataset.taskStatus);
   });
 
   el.newTaskBtn.addEventListener('click', () => {
@@ -363,32 +491,26 @@ function bindEvents() {
     el.promptModal.showModal();
   });
 
-  el.promptModal.addEventListener('close', () => {
+  el.promptModal.addEventListener('close', async () => {
     if (el.promptModal.returnValue !== 'ok' || !state.pendingTask) {
       state.pendingTask = false;
       return;
     }
 
-    const value = el.promptInput.value.trim();
     state.pendingTask = false;
+    const value = el.promptInput.value.trim();
     if (!value) return;
-
-    addTask(value, 'Создано вручную через панель.');
-    render();
+    await createTask(value);
   });
 }
 
-function bootstrap() {
-  restore();
-  renderUserSelect();
+async function bootstrap() {
+  await detectBackend();
+  await loadUsers();
   bindEvents();
-
-  if (state.currentUser) {
-    render();
-    return;
-  }
-
-  renderAuthState();
+  await loadSession();
+  renderUserSelect();
+  render();
 }
 
 bootstrap();

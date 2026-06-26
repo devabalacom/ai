@@ -1,30 +1,44 @@
 # AgentHub MVP
 
-Минимальный employee-only прототип внутренней AI-панели.
+Employee-only AI workspace with a small Node backend.
 
-Что есть:
-- 2 demo-аккаунта
-- у каждого пользователя свой workspace
-- у каждого workspace свой агент
-- только личный чат, задачи и workflow
-- без provider-панели, owner-экрана и лишних данных
+What is included:
+- 2 demo accounts
+- each user gets a separate workspace
+- each workspace has its own agent, chat, tasks, and workflow
+- backend API with login, messages, tasks, and mode updates
+- frontend fallback mode for static hosting
 
 Demo credentials:
 
 - `Сергей / demo`
 - `Марина / demo`
 
-Это статический frontend-mock. В реальном продукте сюда отдельно подключаются backend, auth, storage и LLM-provider.
+## Run locally
 
-## Поведение
+```bash
+npm start
+```
 
-1. Сотрудник входит в свой аккаунт.
-2. Видит только свой чат, свои задачи и свой workflow.
-3. Все сообщения и задачи принадлежат только его workspace.
-4. Агент создаётся системой и работает без ручной настройки API со стороны пользователя.
+Open:
 
-## GitHub Pages
+```text
+http://localhost:3000
+```
 
-1. Открой Settings -> Pages.
-2. В Build and deployment выбери GitHub Actions.
-3. Сделай push в main или запусти workflow вручную из Actions.
+## API
+
+- `GET /api/health`
+- `GET /api/users`
+- `GET /api/me`
+- `POST /api/login`
+- `POST /api/logout`
+- `POST /api/message`
+- `POST /api/workspace/mode`
+- `POST /api/tasks`
+- `PATCH /api/tasks/:id`
+
+## Notes
+
+- The backend stores state in `data/state.json`.
+- GitHub Pages can still host the static fallback, but the real backend runs via Node.
