@@ -2,50 +2,46 @@
 
 Employee-only AI workspace with a single VPS deployment.
 
-What is included:
+Included:
 - 2 demo accounts
-- each user gets a separate workspace
-- each workspace has its own agent, chat, tasks, and workflow
-- backend API with Postgres persistence
+- separate workspace per user
+- own agent, chat, tasks, workflow
+- backend API with Postgres
 - frontend served from the same VPS through nginx
 
 Demo credentials:
+- Сергей / demo
+- Марина / demo
 
-- `Сергей / demo`
-- `Марина / demo`
-
-## Deployment model
-
-- `web` container: nginx + static frontend
-- `api` container: Node backend
-- `db` container: Postgres
+Deployment model:
+- web container: nginx + static frontend
+- api container: Node backend
+- db container: Postgres
 - one domain, one origin, no CORS issues
 
-## Run locally
+LLM chat:
+- If OPENAI_API_KEY is set in the VPS environment, the chat replies via OpenAI.
+- If the key is missing, the backend falls back to built-in demo reply logic.
 
-```bash
-docker compose up --build
-```
+Optional environment variables:
+- OPENAI_API_KEY
+- OPENAI_MODEL (default: gpt-4o-mini)
 
-Open:
+Run locally:
+- docker compose up --build
+- open http://localhost
 
-```text
-http://localhost
-```
+API:
+- GET /api/health
+- GET /api/users
+- GET /api/me
+- POST /api/login
+- POST /api/logout
+- POST /api/message
+- POST /api/workspace/mode
+- POST /api/tasks
+- PATCH /api/tasks/:id
 
-## API
-
-- `GET /api/health`
-- `GET /api/users`
-- `GET /api/me`
-- `POST /api/login`
-- `POST /api/logout`
-- `POST /api/message`
-- `POST /api/workspace/mode`
-- `POST /api/tasks`
-- `PATCH /api/tasks/:id`
-
-## Notes
-
-- The backend stores data in Postgres.
-- The frontend is served by nginx in the same compose stack, so the browser talks to one origin only.
+Notes:
+- Data is stored in Postgres.
+- Frontend and backend run on one origin in the same compose stack.

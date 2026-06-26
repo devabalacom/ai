@@ -11,6 +11,8 @@ const STATE_DIR = path.join(ROOT, 'data');
 const SESSION_COOKIE = 'agenthub_session';
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '';
 const DATABASE_URL = process.env.DATABASE_URL || '';
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
 if (!DATABASE_URL) {
   console.error('DATABASE_URL is required');
@@ -320,6 +322,76 @@ function generateReply(workspace, message) {
   return 'Принял. Могу отвечать, искать, создавать задачи и вести твой личный workflow.';
 }
 
+function buildSystemPrompt(workspace) {
+  return [
+    'Ты личный рабочий агент сотрудника компании.',
+    'Отвечай по-русски, коротко и по делу.',
+    'Контекст изолирован: видишь только одного сотрудника и его workspace.',
+    'Не упоминай внутреннюю реализацию, если это не нужно пользователю.',
+    'Если сообщение похоже на задачу, помоги оформить следующий шаг.',
+    'Текущий режим агента: ' + workspace.mode + '.'
+  ].join(' ');
+}
+
+function toOpenAiMessages(workspace, userText) {
+  const history = workspace.messages.slice(-16).map((message) => ({
+    role: message.role === 'agent' ? 'assistant' : 'user',
+    content: message.text
+  }));
+
+  return [
+    { role: 'system', content: buildSystemPrompt(workspace) },
+    ...history,
+    { role: 'user', content: userText }
+  ];
+}
+
+function extractOpenAiText(payload) {
+  const choice = payload && payload.choices && payload.choices[0];
+  const content = choice && choice.message && choice.message.content;
+  if (typeof content === 'string') return content.trim();
+  if (Array.isArray(content)) {
+    return content.map((part) => (part && part.text) || '').join('').trim();
+  }
+  return '';
+}
+
+async function askOpenAi(workspace, userText) {
+  if (!OPENAI_API_KEY) return null;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        Authorization: 'Bearer ' + OPENAI_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        messages: toOpenAiMessages(workspace, userText),
+        temperature: 0.4,
+        max_tokens: 400
+      })
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = await response.json();
+    const text = extractOpenAiText(data);
+    return text || null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 async function handleLogin(req, res) {
   try {
     const body = await readBody(req);
@@ -356,8 +428,9 @@ async function handleMessage(req, res) {
       return;
     }
     addMessage(ctx.workspace, 'user', text, ctx.user.name);
-    const reply = generateReply(ctx.workspace, text);
+    const reply = (await askOpenAi(ctx.workspace, text)) || generateReply(ctx.workspace, text);
     addMessage(ctx.workspace, 'agent', reply, 'Агент ' + ctx.workspace.name);
+    ctx.workspace.model = OPENAI_API_KEY ? OPENAI_MODEL : ctx.workspace.model;
     await saveWorkspace(ctx.workspace);
     sendJson(res, 200, { workspace: ctx.workspace, reply: reply });
   } catch {
