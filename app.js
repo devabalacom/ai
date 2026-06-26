@@ -8,6 +8,35 @@ const aiProvider = {
   provisioning: 'Owner creates the agent, employee gets a ready-to-use chat'
 };
 
+const platformBlueprint = {
+  tenant: 'Company',
+  workspace: 'Per employee isolated workspace',
+  entities: [
+    { name: 'Tenant', detail: 'Компания как единый контур' },
+    { name: 'User', detail: 'Сотрудник с собственным входом' },
+    { name: 'Workspace', detail: 'Личное пространство сотрудника' },
+    { name: 'Agent', detail: 'Персональный агент с отдельной памятью' },
+    { name: 'Message', detail: 'Сообщение в чате и результат ответа' },
+    { name: 'Task', detail: 'Очередь действий и статусов' },
+    { name: 'Memory', detail: 'Долгая память по пользователю' },
+    { name: 'AuditLog', detail: 'События, действия, подтверждения' }
+  ],
+  onboarding: [
+    'Owner добавляет сотрудника в admin panel',
+    'Provider автоматически создаёт workspace and agent',
+    'Сотрудник получает логин и входит в свой чат',
+    'Все ответы и действия идут через центральный provider'
+  ],
+  screens: [
+    'Login',
+    'Employee workspace',
+    'Owner dashboard',
+    'Agent detail',
+    'Tasks and memory',
+    'Audit log'
+  ]
+};
+
 const demoUsers = [
   { id: 'joni', name: 'Joni', role: 'owner', title: 'Owner / admin', password: 'demo', agentId: 'owner-agent' },
   { id: 'sergey', name: 'Сергей', role: 'employee', title: 'Support lead', password: 'demo', agentId: 'sergey-agent' },
@@ -131,6 +160,9 @@ const el = {
   providerRole: document.getElementById('provider-role'),
   providerDelivery: document.getElementById('provider-delivery'),
   providerProvisioning: document.getElementById('provider-provisioning'),
+  entityList: document.getElementById('entity-list'),
+  onboardingList: document.getElementById('onboarding-list'),
+  screenList: document.getElementById('screen-list'),
   authCard: document.getElementById('auth-card'),
   dashboard: document.getElementById('dashboard'),
   loginForm: document.getElementById('login-form'),
@@ -315,6 +347,25 @@ function renderAuthState() {
   const loggedIn = Boolean(state.currentUser);
   el.authCard.classList.toggle('hidden', loggedIn);
   el.dashboard.classList.toggle('hidden', !loggedIn);
+}
+
+function renderProviderPanel() {
+  el.providerModel.textContent = aiProvider.model;
+  el.providerRole.textContent = aiProvider.role;
+  el.providerDelivery.textContent = aiProvider.delivery;
+  el.providerProvisioning.textContent = aiProvider.provisioning;
+
+  el.entityList.innerHTML = platformBlueprint.entities.map(function (entity) {
+    return '<div class="blueprint-item"><div class="blueprint-name">' + entity.name + '</div><div class="blueprint-detail">' + entity.detail + '</div></div>';
+  }).join('');
+
+  el.onboardingList.innerHTML = platformBlueprint.onboarding.map(function (step, index) {
+    return '<div class="blueprint-step"><div class="step-index">' + String(index + 1).padStart(2, '0') + '</div><div class="blueprint-detail">' + step + '</div></div>';
+  }).join('');
+
+  el.screenList.innerHTML = platformBlueprint.screens.map(function (screen) {
+    return '<div class="screen-pill">' + screen + '</div>';
+  }).join('');
 }
 
 function renderSidebar() {

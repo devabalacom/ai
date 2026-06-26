@@ -372,6 +372,73 @@ button, input, select { font: inherit; }
   color: var(--text);
 }
 
+.blueprint-panel {
+  margin-top: 18px;
+}
+
+.blueprint-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 0.8fr);
+  gap: 16px;
+}
+
+.section-label {
+  margin-bottom: 10px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.blueprint-list {
+  display: grid;
+  gap: 10px;
+}
+
+.blueprint-item,
+.blueprint-step,
+.screen-pill {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 16px;
+  padding: 12px 14px;
+}
+
+.blueprint-name {
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+
+.blueprint-detail {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.blueprint-step {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+.step-index {
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.screen-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.screen-pill {
+  padding: 10px 12px;
+  border-radius: 999px;
+}
+
 .chat-panel {
   min-height: 760px;
   display: grid;
@@ -562,6 +629,10 @@ button, input, select { font: inherit; }
   }
 
   .feature-list {
+    grid-template-columns: 1fr;
+  }
+
+  .blueprint-grid {
     grid-template-columns: 1fr;
   }
 
