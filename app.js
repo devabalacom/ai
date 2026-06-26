@@ -153,6 +153,7 @@ const el = {
   messages: document.getElementById('messages'),
   composer: document.getElementById('composer'),
   messageInput: document.getElementById('message-input'),
+  sendBtn: document.getElementById('send-btn'),
   taskList: document.getElementById('task-list'),
   memoryList: document.getElementById('memory-list'),
   auditList: document.getElementById('audit-list'),
@@ -472,6 +473,14 @@ function processUserMessage(message) {
   handleAgentResponse(response, message);
 }
 
+function sendCurrentMessage() {
+  const message = el.messageInput.value.trim();
+  if (!message) return;
+  processUserMessage(message);
+  el.messageInput.value = '';
+  el.messageInput.focus();
+}
+
 function bindEvents() {
   const clearPasswordError = () => {
     el.password.setCustomValidity('');
@@ -532,10 +541,18 @@ function bindEvents() {
 
   el.composer.addEventListener('submit', (event) => {
     event.preventDefault();
-    const message = el.messageInput.value.trim();
-    if (!message) return;
-    processUserMessage(message);
-    el.messageInput.value = '';
+    sendCurrentMessage();
+  });
+
+  el.sendBtn.addEventListener('click', () => {
+    sendCurrentMessage();
+  });
+
+  el.messageInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      sendCurrentMessage();
+    }
   });
 
   el.taskList.addEventListener('click', (event) => {
