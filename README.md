@@ -1,42 +1,36 @@
 # AgentHub MVP
 
-Employee-only AI workspace with a Node backend and a Vercel frontend.
+Employee-only AI workspace with a single VPS deployment.
 
 What is included:
 - 2 demo accounts
 - each user gets a separate workspace
 - each workspace has its own agent, chat, tasks, and workflow
 - backend API with Postgres persistence
-- frontend fallback mode for static hosting
+- frontend served from the same VPS through nginx
 
 Demo credentials:
 
 - `Сергей / demo`
 - `Марина / demo`
 
-## Backend
+## Deployment model
 
-Runs on the VPS with Docker Compose:
-
-- Postgres database
-- Node API container
-- session cookie auth
-
-## Frontend
-
-Deploy on Vercel.
-The frontend sends `/api/*` to the VPS through Vercel rewrites.
+- `web` container: nginx + static frontend
+- `api` container: Node backend
+- `db` container: Postgres
+- one domain, one origin, no CORS issues
 
 ## Run locally
 
 ```bash
-npm start
+docker compose up --build
 ```
 
 Open:
 
 ```text
-http://localhost:3000
+http://localhost
 ```
 
 ## API
@@ -54,4 +48,4 @@ http://localhost:3000
 ## Notes
 
 - The backend stores data in Postgres.
-- Static fallback still works if you open the site without the backend, but the real production setup is VPS + Vercel.
+- The frontend is served by nginx in the same compose stack, so the browser talks to one origin only.
