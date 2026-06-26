@@ -6,6 +6,14 @@ const demoUsers = [
   { id: 'oleg', name: 'Олег', role: 'employee', title: 'Ops manager', password: 'demo', agentId: 'ops-agent' }
 ];
 
+const loginAliases = new Map([
+  ['joni', 'joni'],
+  ['марина', 'maria'],
+  ['maria', 'maria'],
+  ['oleg', 'oleg'],
+  ['олег', 'oleg']
+]);
+
 const initialAgents = {
   'owner-agent': {
     id: 'owner-agent',
@@ -261,6 +269,9 @@ function agentReply(input) {
 
 function renderUserSelect() {
   el.userSelect.innerHTML = demoUsers.map((user) => `<option value="${user.id}">${user.name} · ${user.title}</option>`).join('');
+  if (!el.userSelect.value && demoUsers[0]) {
+    el.userSelect.value = demoUsers[0].id;
+  }
 }
 
 function renderAuthState() {
@@ -425,9 +436,18 @@ function processUserMessage(message) {
 }
 
 function bindEvents() {
+  const clearPasswordError = () => {
+    el.password.setCustomValidity('');
+  };
+
+  el.password.addEventListener('input', clearPasswordError);
+  el.userSelect.addEventListener('change', clearPasswordError);
+
   el.loginForm.addEventListener('submit', (event) => {
     event.preventDefault();
-    const user = demoUsers.find((item) => item.id === el.userSelect.value);
+    const rawLogin = String(el.userSelect.value || '').trim().toLowerCase();
+    const userId = loginAliases.get(rawLogin) || rawLogin;
+    const user = demoUsers.find((item) => item.id === userId || item.name.toLowerCase() === rawLogin);
     if (!user || el.password.value !== user.password) {
       el.password.setCustomValidity('Неверный demo-пароль');
       el.password.reportValidity();
@@ -443,6 +463,7 @@ function bindEvents() {
   el.demoFill.addEventListener('click', () => {
     el.userSelect.value = demoUsers[0].id;
     el.password.value = 'demo';
+    clearPasswordError();
   });
 
   el.logoutBtn.addEventListener('click', () => {
