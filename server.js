@@ -424,7 +424,7 @@ async function askOpenClawGateway(workspace, userText, agentFiles) {
   if (!OPENCLAW_GATEWAY_URL) return null;
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000);
+  const timeoutId = setTimeout(() => controller.abort(), 4500);
   const headers = { 'Content-Type': 'application/json' };
   if (OPENCLAW_GATEWAY_TOKEN) {
     headers.Authorization = 'Bearer ' + OPENCLAW_GATEWAY_TOKEN;
@@ -456,6 +456,16 @@ async function askOpenClawGateway(workspace, userText, agentFiles) {
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+async function answerWorkspaceMessage(workspace, userText, agentFiles) {
+  const gatewayPromise = askOpenClawGateway(workspace, userText, agentFiles);
+  const fallbackPromise = new Promise((resolve) => {
+    setTimeout(() => resolve(null), 1800);
+  });
+
+  const reply = await Promise.race([gatewayPromise, fallbackPromise]);
+  return reply || generateWorkflowReply(workspace, userText, agentFiles);
 }
 
 function tryWorkflowAction(workspace, text, reply) {
@@ -505,7 +515,7 @@ async function handleMessage(req, res) {
     }
     addMessage(ctx.workspace, 'user', text, ctx.user.name);
     const agentFiles = getAgentFiles(ctx.workspace.id);
-    const reply = (await askOpenClawGateway(ctx.workspace, text, agentFiles)) || generateWorkflowReply(ctx.workspace, text, agentFiles);
+    const reply = await answerWorkspaceMessage(ctx.workspace, text, agentFiles);
     tryWorkflowAction(ctx.workspace, text, reply);
     addMessage(ctx.workspace, 'agent', reply, 'Агент ' + ctx.workspace.name);
     ctx.workspace.model = WORKFLOW_PROVIDER === 'openclaw'

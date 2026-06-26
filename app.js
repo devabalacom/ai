@@ -166,6 +166,9 @@ function renderWorkspace() {
   const workspace = currentWorkspace();
   if (!state.currentUser || !workspace) return;
 
+  el.sendBtn.disabled = state.sendingMessage;
+  el.sendBtn.textContent = state.sendingMessage ? 'Отправляем…' : 'Отправить';
+
   el.profileName.textContent = state.currentUser.name;
   el.profileMeta.textContent = `${state.currentUser.title} · личное пространство`;
   el.workspaceTitle.textContent = `${workspace.name} · ${workspace.title}`;
@@ -375,6 +378,7 @@ async function sendMessage(text) {
   if (!state.currentUser) return;
   if (state.sendingMessage) return;
   state.sendingMessage = true;
+  render();
   const previousText = el.messageInput.value;
   const workspace = currentWorkspace();
   const safeText = String(text || '').trim();
