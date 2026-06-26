@@ -1,4 +1,5 @@
 const STORAGE_KEY = 'agenthub-client-state-v2';
+const API_BASE = (window.AGENTHUB_API_BASE || '').replace(/\/$/, '');
 
 const demoUsers = [
   { id: 'sergey', name: 'Сергей', title: 'Support lead', password: 'demo', agentId: 'sergey-agent' },
@@ -106,7 +107,8 @@ function restoreLocal() {
 }
 
 async function apiRequest(path, options = {}) {
-  const response = await fetch(path, {
+  const url = API_BASE ? API_BASE + path : path;
+  const response = await fetch(url, {
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
@@ -273,7 +275,7 @@ function generateReply(workspace, message) {
 
 async function detectBackend() {
   try {
-    const response = await fetch('/api/health', { cache: 'no-store', credentials: 'include' });
+    const response = await fetch((API_BASE ? API_BASE : '') + '/api/health', { cache: 'no-store', credentials: 'include' });
     state.apiAvailable = response.ok;
   } catch {
     state.apiAvailable = false;
