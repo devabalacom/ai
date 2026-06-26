@@ -11,8 +11,11 @@ const STATE_DIR = path.join(ROOT, 'data');
 const SESSION_COOKIE = 'agenthub_session';
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '';
 const DATABASE_URL = process.env.DATABASE_URL || '';
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+const WORKFLOW_PROVIDER = process.env.WORKFLOW_PROVIDER || 'openclaw';
+const OPENCLAW_GATEWAY_URL = process.env.OPENCLAW_GATEWAY_URL || '';
+const OPENCLAW_GATEWAY_TOKEN = process.env.OPENCLAW_GATEWAY_TOKEN || '';
+const OPENCLAW_GATEWAY_PASSWORD = process.env.OPENCLAW_GATEWAY_PASSWORD || '';
+const AGENTS_DIR = path.join(ROOT, 'agents');
 
 if (!DATABASE_URL) {
   console.error('DATABASE_URL is required');
@@ -32,7 +35,7 @@ function seedWorkspace(userName, mode, quickActions, tasks, messages) {
     name: userName,
     title: 'Личный рабочий агент',
     mode: mode,
-    model: 'GPT-5',
+    model: 'OpenClaw workflow',
     quickActions: quickActions,
     tasks: tasks,
     messages: messages
@@ -118,6 +121,8 @@ async function initDb() {
       ]);
     }
   }
+
+  await pool.query("UPDATE workspaces SET model = 'OpenClaw workflow' WHERE model IS DISTINCT FROM 'OpenClaw workflow'");
 }
 
 function parseCookies(req) {
@@ -227,6 +232,25 @@ async function saveWorkspace(workspace) {
   ]);
 }
 
+function readTextFile(filePath) {
+  try {
+    return fs.readFileSync(filePath, 'utf8').trim();
+  } catch {
+    return '';
+  }
+}
+
+function getAgentFiles(agentId) {
+  const agentDir = path.join(AGENTS_DIR, agentId);
+  return {
+    dir: agentDir,
+    soul: readTextFile(path.join(agentDir, 'SOUL.md')),
+    user: readTextFile(path.join(agentDir, 'USER.md')),
+    memory: readTextFile(path.join(agentDir, 'MEMORY.md')),
+    workflow: readTextFile(path.join(agentDir, 'WORKFLOW.md'))
+  };
+}
+
 async function createSession(userId, res) {
   const token = crypto.randomUUID();
   const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30);
@@ -299,54 +323,82 @@ function addMessage(workspace, role, text, author) {
   workspace.messages = workspace.messages.slice(-50);
 }
 
-function generateReply(workspace, message) {
+function extractIntent(message) {
   const lower = String(message).toLowerCase();
-  if (/задач|task|сделай/.test(lower)) {
-    const title = String(message).replace(/создай|сделай|задачу|task/gi, '').trim() || 'Новая задача';
-    addTask(workspace, title, 'Создано из чата.');
-    if (workspace.mode === 'execute') return 'Готово: задача «' + title + '» добавлена.';
-    return 'Могу добавить задачу «' + title + '». Подтверди, если ок.';
-  }
-  if (/прайс|цена|документ|найди|поиск/.test(lower)) {
-    return 'Понял. В этом MVP я найду релевантный шаблон, прайс или документ в личной базе.';
-  }
-  if (/статус|блок|риск/.test(lower)) {
-    return 'Вижу текущий статус: есть открытые задачи и один блокер, если он есть в твоей очереди.';
-  }
-  if (/привет|hello|hi/.test(lower)) {
-    if (workspace.mode === 'answer') return 'На связи. Пиши вопрос, задачу или короткую команду.';
-    return 'Готов. Могу предложить решение, спланировать шаги или выполнить безопасный сценарий.';
-  }
-  if (workspace.mode === 'suggest') return 'Сначала соберу контекст, потом предложу черновик и только затем действие.';
-  if (workspace.mode === 'execute') return 'Выполняю безопасный сценарий и фиксирую результат в текущем workspace.';
-  return 'Принял. Могу отвечать, искать, создавать задачи и вести твой личный workflow.';
+  if (/задач|task|сделай/.test(lower)) return 'task';
+  if (/прайс|цена|документ|найди|поиск/.test(lower)) return 'search';
+  if (/статус|блок|риск/.test(lower)) return 'status';
+  if (/привет|hello|hi/.test(lower)) return 'greeting';
+  return 'default';
 }
 
-function buildSystemPrompt(workspace) {
+function buildOpenClawPrompt(workspace, agentFiles, userText) {
   return [
-    'Ты личный рабочий агент сотрудника компании.',
-    'Отвечай по-русски, коротко и по делу.',
+    agentFiles.soul || 'Ты личный рабочий агент сотрудника компании.',
+    agentFiles.user ? 'Профиль сотрудника:\n' + agentFiles.user : '',
+    agentFiles.workflow ? 'Workflow:\n' + agentFiles.workflow : '',
+    agentFiles.memory ? 'Память:\n' + agentFiles.memory : '',
+    'Текущий режим: ' + workspace.mode + '.',
     'Контекст изолирован: видишь только одного сотрудника и его workspace.',
-    'Не упоминай внутреннюю реализацию, если это не нужно пользователю.',
-    'Если сообщение похоже на задачу, помоги оформить следующий шаг.',
-    'Текущий режим агента: ' + workspace.mode + '.'
-  ].join(' ');
+    'Отвечай по-русски, коротко и по делу.',
+    'Сообщение пользователя: ' + userText
+  ].filter(Boolean).join('\n\n');
 }
 
-function toOpenAiMessages(workspace, userText) {
+function generateWorkflowReply(workspace, message, agentFiles) {
+  const intent = extractIntent(message);
+  const agentTone = agentFiles.soul
+    ? 'Под капотом работает персональный агент через OpenClaw workflow.'
+    : 'Под капотом работает персональный workflow-агент.';
+
+  if (intent === 'task') {
+    const title = String(message).replace(/создай|сделай|задачу|task/gi, '').trim() || 'Новая задача';
+    if (!workspace.tasks.some((task) => task.title.toLowerCase() === title.toLowerCase())) {
+      addTask(workspace, title, 'Создано из чата OpenClaw workflow.');
+    }
+    if (workspace.mode === 'execute') return 'Готово: задача «' + title + '» добавлена. ' + agentTone;
+    if (workspace.mode === 'approve') return 'Могу добавить задачу «' + title + '». Подтверди, если ок. ' + agentTone;
+    return 'Могу оформить задачу «' + title + '» и добавить её в твой workflow. ' + agentTone;
+  }
+
+  if (intent === 'search') {
+    return 'Понял. Ищу релевантный документ, прайс или шаблон в личной базе этого агента.';
+  }
+
+  if (intent === 'status') {
+    return 'Вижу текущий статус: ' + workspace.tasks.filter((task) => task.status !== 'done').length + ' открытых задач и ' + workspace.messages.length + ' сообщений в истории.';
+  }
+
+  if (intent === 'greeting') {
+    if (workspace.mode === 'answer') return 'На связи. Пиши вопрос, задачу или короткую команду.';
+    return 'Готов. Могу предложить шаги, оформить задачу или выполнить безопасный сценарий.';
+  }
+
+  if (workspace.mode === 'suggest') {
+    return 'Сначала соберу контекст, потом предложу черновик и только затем действие.';
+  }
+
+  if (workspace.mode === 'execute') {
+    return 'Выполняю безопасный сценарий и фиксирую результат в текущем workspace.';
+  }
+
+  return agentFiles.workflow || 'Принял. Веду личный workspace сотрудника: чат, задачи и workflow.';
+}
+
+function toOpenAiMessages(workspace, userText, agentFiles) {
   const history = workspace.messages.slice(-16).map((message) => ({
     role: message.role === 'agent' ? 'assistant' : 'user',
     content: message.text
   }));
 
   return [
-    { role: 'system', content: buildSystemPrompt(workspace) },
+    { role: 'system', content: buildOpenClawPrompt(workspace, agentFiles, userText) },
     ...history,
     { role: 'user', content: userText }
   ];
 }
 
-function extractOpenAiText(payload) {
+function extractOpenClawText(payload) {
   const choice = payload && payload.choices && payload.choices[0];
   const content = choice && choice.message && choice.message.content;
   if (typeof content === 'string') return content.trim();
@@ -356,39 +408,50 @@ function extractOpenAiText(payload) {
   return '';
 }
 
-async function askOpenAi(workspace, userText) {
-  if (!OPENAI_API_KEY) return null;
+async function askOpenClawGateway(workspace, userText, agentFiles) {
+  if (!OPENCLAW_GATEWAY_URL) return null;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 30000);
+  const headers = { 'Content-Type': 'application/json' };
+  if (OPENCLAW_GATEWAY_TOKEN) {
+    headers.Authorization = 'Bearer ' + OPENCLAW_GATEWAY_TOKEN;
+  } else if (OPENCLAW_GATEWAY_PASSWORD) {
+    headers.Authorization = 'Bearer ' + OPENCLAW_GATEWAY_PASSWORD;
+  }
 
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch(OPENCLAW_GATEWAY_URL.replace(/\/$/, '') + '/v1/chat/completions', {
       method: 'POST',
       signal: controller.signal,
-      headers: {
-        Authorization: 'Bearer ' + OPENAI_API_KEY,
-        'Content-Type': 'application/json'
-      },
+      headers: headers,
       body: JSON.stringify({
-        model: OPENAI_MODEL,
-        messages: toOpenAiMessages(workspace, userText),
+        model: 'openclaw/' + workspace.id,
+        messages: toOpenAiMessages(workspace, userText, agentFiles),
         temperature: 0.4,
         max_tokens: 400
       })
     });
 
-    if (!response.ok) {
-      return null;
-    }
+    if (!response.ok) return null;
 
     const data = await response.json();
-    const text = extractOpenAiText(data);
+    const text = extractOpenClawText(data);
     return text || null;
   } catch {
     return null;
   } finally {
     clearTimeout(timeoutId);
+  }
+}
+
+function tryWorkflowAction(workspace, text, reply) {
+  const lower = String(text).toLowerCase();
+  if (!(/создай|сделай|задач|task/.test(lower))) return;
+  if (!/добавлен|готово|могу/.test(String(reply).toLowerCase())) return;
+  const title = String(text).replace(/создай|сделай|задачу|task/gi, '').trim() || 'Новая задача';
+  if (!workspace.tasks.some((task) => task.title.toLowerCase() === title.toLowerCase())) {
+    addTask(workspace, title, 'Создано из чата OpenClaw workflow.');
   }
 }
 
@@ -428,9 +491,11 @@ async function handleMessage(req, res) {
       return;
     }
     addMessage(ctx.workspace, 'user', text, ctx.user.name);
-    const reply = (await askOpenAi(ctx.workspace, text)) || generateReply(ctx.workspace, text);
+    const agentFiles = getAgentFiles(ctx.workspace.id);
+    const reply = (await askOpenClawGateway(ctx.workspace, text, agentFiles)) || generateWorkflowReply(ctx.workspace, text, agentFiles);
+    tryWorkflowAction(ctx.workspace, text, reply);
     addMessage(ctx.workspace, 'agent', reply, 'Агент ' + ctx.workspace.name);
-    ctx.workspace.model = OPENAI_API_KEY ? OPENAI_MODEL : ctx.workspace.model;
+    ctx.workspace.model = WORKFLOW_PROVIDER === 'openclaw' ? 'OpenClaw workflow' : ctx.workspace.model;
     await saveWorkspace(ctx.workspace);
     sendJson(res, 200, { workspace: ctx.workspace, reply: reply });
   } catch {

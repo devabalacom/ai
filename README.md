@@ -5,9 +5,10 @@ Employee-only AI workspace with a single VPS deployment.
 Included:
 - 2 demo accounts
 - separate workspace per user
-- own agent, chat, tasks, workflow
+- own OpenClaw workflow agent, chat, tasks, workflow
 - backend API with Postgres
 - frontend served from the same VPS through nginx
+- per-agent files live in agents/<user>/
 
 Demo credentials:
 - Сергей / demo
@@ -19,13 +20,16 @@ Deployment model:
 - db container: Postgres
 - one domain, one origin, no CORS issues
 
-LLM chat:
-- If OPENAI_API_KEY is set in the VPS environment, the chat replies via OpenAI.
-- If the key is missing, the backend falls back to built-in demo reply logic.
+Workflow layer:
+- The backend now uses OpenClaw workflow files per user.
+- If OPENCLAW_GATEWAY_URL is set, the backend can call an OpenClaw Gateway.
+- If no gateway is configured, the backend falls back to local workflow logic so chat still works.
 
 Optional environment variables:
-- OPENAI_API_KEY
-- OPENAI_MODEL (default: gpt-4o-mini)
+- WORKFLOW_PROVIDER (default: openclaw)
+- OPENCLAW_GATEWAY_URL
+- OPENCLAW_GATEWAY_TOKEN
+- OPENCLAW_GATEWAY_PASSWORD
 
 Run locally:
 - docker compose up --build
@@ -45,3 +49,4 @@ API:
 Notes:
 - Data is stored in Postgres.
 - Frontend and backend run on one origin in the same compose stack.
+- Agent persona, user profile, memory, and workflow text are loaded from agents/<user>/*.md.
