@@ -43,7 +43,7 @@
     </section>
 
     <section class="dashboard hidden" id="dashboard" aria-live="polite">
-      <aside class="sidebar">
+      <aside class="sidebar" id="owner-sidebar">
         <div class="brand-block">
           <div>
             <div class="eyebrow">AgentHub</div>
@@ -88,7 +88,7 @@
           </div>
         </header>
 
-        <section class="panel provider-panel">
+        <section class="panel provider-panel" id="provider-panel">
           <div class="panel-head slim">
             <div>
               <div class="panel-title">Центральный provider</div>
@@ -112,7 +112,7 @@
           </div>
         </section>
 
-        <section class="panel blueprint-panel">
+        <section class="panel blueprint-panel" id="blueprint-panel">
           <div class="panel-head slim">
             <div>
               <div class="panel-title">Сущности и flow</div>
@@ -135,7 +135,17 @@
           </div>
         </section>
 
-        <div class="grid">
+        <section class="panel workflow-panel" id="workflow-panel">
+          <div class="panel-head slim">
+            <div>
+              <div class="panel-title">Мой workflow</div>
+              <div class="panel-subtitle">Сотрудник видит только свои данные и свой агентский поток.</div>
+            </div>
+          </div>
+          <div class="workflow-grid" id="workflow-grid"></div>
+        </section>
+
+        <div class="grid" id="workspace-grid">
           <section class="panel chat-panel">
             <div class="panel-head">
               <div>

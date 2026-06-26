@@ -352,6 +352,10 @@ button, input, select { font: inherit; }
   margin-top: 18px;
 }
 
+.workflow-panel {
+  margin-top: 18px;
+}
+
 .provider-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -437,6 +441,32 @@ button, input, select { font: inherit; }
 .screen-pill {
   padding: 10px 12px;
   border-radius: 999px;
+}
+
+.workflow-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.workflow-card {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 18px;
+  padding: 14px 16px;
+}
+
+.workflow-label {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.workflow-value {
+  margin-top: 8px;
+  font-size: 16px;
+  font-weight: 800;
 }
 
 .chat-panel {
@@ -633,6 +663,10 @@ button, input, select { font: inherit; }
   }
 
   .blueprint-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .workflow-grid {
     grid-template-columns: 1fr;
   }
 

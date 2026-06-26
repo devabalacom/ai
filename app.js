@@ -37,6 +37,13 @@ const platformBlueprint = {
   ]
 };
 
+const workflowBlueprint = [
+  { label: 'Step 1', value: 'Login to personal workspace' },
+  { label: 'Step 2', value: 'Chat with your agent' },
+  { label: 'Step 3', value: 'Create tasks and memory' },
+  { label: 'Step 4', value: 'Audit and history stay private' }
+];
+
 const demoUsers = [
   { id: 'joni', name: 'Joni', role: 'owner', title: 'Owner / admin', password: 'demo', agentId: 'owner-agent' },
   { id: 'sergey', name: 'Сергей', role: 'employee', title: 'Support lead', password: 'demo', agentId: 'sergey-agent' },
@@ -163,6 +170,12 @@ const el = {
   entityList: document.getElementById('entity-list'),
   onboardingList: document.getElementById('onboarding-list'),
   screenList: document.getElementById('screen-list'),
+  workflowGrid: document.getElementById('workflow-grid'),
+  ownerSidebar: document.getElementById('owner-sidebar'),
+  providerPanel: document.getElementById('provider-panel'),
+  blueprintPanel: document.getElementById('blueprint-panel'),
+  workflowPanel: document.getElementById('workflow-panel'),
+  workspaceGrid: document.getElementById('workspace-grid'),
   authCard: document.getElementById('auth-card'),
   dashboard: document.getElementById('dashboard'),
   loginForm: document.getElementById('login-form'),
@@ -368,6 +381,29 @@ function renderProviderPanel() {
   }).join('');
 }
 
+function renderWorkflowPanel() {
+  const agent = currentAgent();
+  const workflow = [
+    { label: 'Current mode', value: agent.mode },
+    { label: 'Open tasks', value: String(agent.tasks.filter(function (task) { return task.status !== 'done'; }).length) },
+    { label: 'Memory facts', value: String(agent.memory.length) },
+    { label: 'Private history', value: String(agent.messages.length) }
+  ];
+
+  el.workflowGrid.innerHTML = workflowBlueprint.map(function (item, index) {
+    const detail = workflow[index];
+    return '<div class="workflow-card"><div class="workflow-label">' + item.label + '</div><div class="workflow-value">' + item.value + '</div><div class="blueprint-detail" style="margin-top:8px">' + detail.label + ': ' + detail.value + '</div></div>';
+  }).join('');
+}
+
+function applyRoleVisibility() {
+  const ownerView = isOwner();
+  el.ownerSidebar.classList.toggle('hidden', !ownerView);
+  el.providerPanel.classList.toggle('hidden', !ownerView);
+  el.blueprintPanel.classList.toggle('hidden', !ownerView);
+  el.workflowPanel.classList.toggle('hidden', ownerView);
+}
+
 function renderSidebar() {
   const agentEntries = isOwner()
     ? Object.values(state.agents)
@@ -486,8 +522,13 @@ function render() {
     return;
   }
   renderAuthState();
+  applyRoleVisibility();
   renderSidebar();
-  renderProviderPanel();
+  if (isOwner()) {
+    renderProviderPanel();
+  } else {
+    renderWorkflowPanel();
+  }
   renderTopbar();
   renderModes();
   renderQuickActions();
