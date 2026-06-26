@@ -1,6 +1,6 @@
 # AgentHub MVP
 
-Статический прототип внутренней AI-панели:
+Статический прототип внутренней AI-панели с центральным provider layer:
 
 - логин по demo-аккаунтам
 - персональные агенты
@@ -13,6 +13,7 @@
 Demo credentials:
 
 - `Joni / demo`
+- `Сергей / demo`
 - `Марина / demo`
 - `Олег / demo`
 
@@ -24,3 +25,6 @@ Demo credentials:
 2. В Build and deployment выбери GitHub Actions.
 3. Сделай push в main или запусти workflow вручную из Actions.
 4. После деплоя сайт будет доступен по адресу Pages, который покажет GitHub.
+
+
+Сценарий MVP: owner создаёт агента сотрудника, а сотрудник потом просто пишет в чат как в Telegram.

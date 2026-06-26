@@ -1,13 +1,24 @@
 const STORAGE_KEY = 'agenthub-mvp-state-v1';
 
+const aiProvider = {
+  name: 'Central provider',
+  model: 'GPT-5',
+  delivery: 'Telegram-like chat runtime',
+  role: 'LLM router and agent runtime',
+  provisioning: 'Owner creates the agent, employee gets a ready-to-use chat'
+};
+
 const demoUsers = [
   { id: 'joni', name: 'Joni', role: 'owner', title: 'Owner / admin', password: 'demo', agentId: 'owner-agent' },
+  { id: 'sergey', name: 'Сергей', role: 'employee', title: 'Support lead', password: 'demo', agentId: 'sergey-agent' },
   { id: 'maria', name: 'Марина', role: 'employee', title: 'Sales lead', password: 'demo', agentId: 'sales-agent' },
   { id: 'oleg', name: 'Олег', role: 'employee', title: 'Ops manager', password: 'demo', agentId: 'ops-agent' }
 ];
 
 const loginAliases = new Map([
   ['joni', 'joni'],
+  ['sergey', 'sergey'],
+  ['сергей', 'sergey'],
   ['марина', 'maria'],
   ['maria', 'maria'],
   ['oleg', 'oleg'],
@@ -36,6 +47,27 @@ const initialAgents = {
     audit: [
       { id: 'a1', text: 'MVP workspace created from seed data.', time: '09:01' },
       { id: 'a2', text: 'Mode set to approve.', time: '09:02' }
+    ]
+  },
+  'sergey-agent': {
+    id: 'sergey-agent',
+    name: 'Сергей',
+    title: 'Support and internal ops',
+    mode: 'answer',
+    model: 'GPT-5',
+    permissions: ['Чтение базы', 'Черновики ответов', 'Создание задач'],
+    quickActions: ['Ответь клиенту', 'Проверь статус', 'Собери FAQ', 'Найди документ'],
+    memory: ['Сотрудник не настраивает API сам.', 'Агент создаётся центральным provider-слоем.', 'Работает как личный чат в Telegram.'],
+    tasks: [
+      { id: 't7', title: 'Ответить на тикет по доступам', status: 'todo', details: 'Использовать готовый internal flow без ручной интеграции.' }
+    ],
+    messages: [
+      { id: 'm10', role: 'agent', author: 'AgentHub', time: '09:10', text: 'Сергей, я уже создан. Тебе не нужно подключать API или делать настройку. Просто пиши мне сюда.' },
+      { id: 'm11', role: 'user', author: 'Сергей', time: '09:11', text: 'Сделай ответ на тикет по доступам.' },
+      { id: 'm12', role: 'agent', author: 'AgentHub', time: '09:11', text: 'Готовлю черновик ответа и отмечаю задачу в очередь.' }
+    ],
+    audit: [
+      { id: 'a7', text: 'Agent provisioned by central provider.', time: '09:10' }
     ]
   },
   'sales-agent': {
@@ -95,6 +127,10 @@ const state = {
 };
 
 const el = {
+  providerModel: document.getElementById('provider-model'),
+  providerRole: document.getElementById('provider-role'),
+  providerDelivery: document.getElementById('provider-delivery'),
+  providerProvisioning: document.getElementById('provider-provisioning'),
   authCard: document.getElementById('auth-card'),
   dashboard: document.getElementById('dashboard'),
   loginForm: document.getElementById('login-form'),
@@ -399,6 +435,7 @@ function render() {
   }
   renderAuthState();
   renderSidebar();
+  renderProviderPanel();
   renderTopbar();
   renderModes();
   renderQuickActions();

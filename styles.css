@@ -348,6 +348,30 @@ button, input, select { font: inherit; }
   padding: 18px;
 }
 
+.provider-panel {
+  margin-top: 18px;
+}
+
+.provider-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.provider-card {
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.provider-value {
+  margin-top: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
 .chat-panel {
   min-height: 760px;
   display: grid;
