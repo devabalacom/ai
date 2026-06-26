@@ -49,7 +49,8 @@ const state = {
   workspace: null,
   users: demoUsers,
   localWorkspaces: structuredClone(fallbackWorkspaces),
-  pendingTask: false
+  pendingTask: false,
+  sendingMessage: false
 };
 
 const el = {
@@ -361,21 +362,50 @@ async function setWorkspaceMode(mode) {
 
 async function sendMessage(text) {
   if (!state.currentUser) return;
-  if (state.apiAvailable) {
-    const result = await apiRequest('/api/message', {
-      method: 'POST',
-      body: JSON.stringify({ text })
-    });
-    state.workspace = result.workspace;
-  } else {
-    const workspace = currentWorkspace();
-    addLocalMessage(workspace, 'user', text, state.currentUser.name);
-    const reply = generateReply(workspace, text);
-    addLocalMessage(workspace, 'agent', reply, 'Агент ' + workspace.name);
-    state.workspace = workspace;
-    persistLocal();
+  if (state.sendingMessage) return;
+  state.sendingMessage = true;
+  const previousText = el.messageInput.value;
+  const workspace = currentWorkspace();
+  const safeText = String(text || '').trim();
+  if (!safeText) {
+    state.sendingMessage = false;
+    return;
   }
-  render();
+
+  if (workspace) {
+    addLocalMessage(workspace, 'user', safeText, state.currentUser.name);
+    render();
+  }
+
+  try {
+    if (state.apiAvailable) {
+      const result = await apiRequest('/api/message', {
+        method: 'POST',
+        body: JSON.stringify({ text: safeText })
+      });
+      state.workspace = result.workspace;
+    } else if (workspace) {
+      const reply = generateReply(workspace, safeText);
+      addLocalMessage(workspace, 'agent', reply, 'Агент ' + workspace.name);
+      state.workspace = workspace;
+      persistLocal();
+    }
+    el.messageInput.value = '';
+    render();
+  } catch (error) {
+    if (workspace) {
+      const last = workspace.messages[workspace.messages.length - 1];
+      if (last && last.role === 'user' && last.text === safeText) {
+        workspace.messages.pop();
+      }
+      state.workspace = workspace;
+      render();
+    }
+    el.messageInput.value = previousText || safeText;
+    alert('Не удалось отправить сообщение. Попробуй еще раз.');
+  } finally {
+    state.sendingMessage = false;
+  }
 }
 
 async function createTask(title) {
@@ -458,14 +488,12 @@ function bindEvents() {
     event.preventDefault();
     const message = el.messageInput.value.trim();
     if (!message) return;
-    el.messageInput.value = '';
     await sendMessage(message);
   });
 
   el.sendBtn.addEventListener('click', async () => {
     const message = el.messageInput.value.trim();
     if (!message) return;
-    el.messageInput.value = '';
     await sendMessage(message);
   });
 
