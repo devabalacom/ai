@@ -426,7 +426,8 @@ async function askOpenClawGateway(workspace, userText, agentFiles) {
       signal: controller.signal,
       headers: headers,
       body: JSON.stringify({
-        model: 'openclaw/' + workspace.id,
+        model: 'openclaw/default',
+        user: workspace.id,
         messages: toOpenAiMessages(workspace, userText, agentFiles),
         temperature: 0.4,
         max_tokens: 400
