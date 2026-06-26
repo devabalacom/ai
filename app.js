@@ -1,5 +1,6 @@
 const STORAGE_KEY = 'agenthub-client-state-v2';
 const API_BASE = (window.AGENTHUB_API_BASE || '').replace(/\/$/, '');
+const TIME_ZONE = 'Europe/Moscow';
 
 const demoUsers = [
   { id: 'sergey', name: 'Сергей', title: 'Support lead', password: 'demo', agentId: 'sergey-agent' },
@@ -133,7 +134,17 @@ function currentWorkspace() {
 }
 
 function now() {
-  return new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  return new Intl.DateTimeFormat('ru-RU', {
+    timeZone: TIME_ZONE,
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(new Date());
+}
+
+function scrollMessagesToBottom() {
+  requestAnimationFrame(() => {
+    el.messages.scrollTop = el.messages.scrollHeight;
+  });
 }
 
 function statusBadge(status) {
@@ -182,7 +193,7 @@ function renderWorkspace() {
       <div>${message.text}</div>
     </article>
   `).join('');
-  el.messages.scrollTop = el.messages.scrollHeight;
+  scrollMessagesToBottom();
 
   el.taskList.innerHTML = workspace.tasks.map((task) => `
     <div class="task-item">
@@ -502,7 +513,6 @@ function bindEvents() {
       event.preventDefault();
       const message = el.messageInput.value.trim();
       if (!message) return;
-      el.messageInput.value = '';
       await sendMessage(message);
     }
   });
