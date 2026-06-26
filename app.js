@@ -1,181 +1,55 @@
-const STORAGE_KEY = 'agenthub-mvp-state-v1';
-
-const aiProvider = {
-  name: 'Central provider',
-  model: 'GPT-5',
-  delivery: 'Telegram-like chat runtime',
-  role: 'LLM router and agent runtime',
-  provisioning: 'Owner creates the agent, employee gets a ready-to-use chat'
-};
-
-const platformBlueprint = {
-  tenant: 'Company',
-  workspace: 'Per employee isolated workspace',
-  entities: [
-    { name: 'Tenant', detail: 'Компания как единый контур' },
-    { name: 'User', detail: 'Сотрудник с собственным входом' },
-    { name: 'Workspace', detail: 'Личное пространство сотрудника' },
-    { name: 'Agent', detail: 'Персональный агент с отдельной памятью' },
-    { name: 'Message', detail: 'Сообщение в чате и результат ответа' },
-    { name: 'Task', detail: 'Очередь действий и статусов' },
-    { name: 'Memory', detail: 'Долгая память по пользователю' },
-    { name: 'AuditLog', detail: 'События, действия, подтверждения' }
-  ],
-  onboarding: [
-    'Owner добавляет сотрудника в admin panel',
-    'Provider автоматически создаёт workspace and agent',
-    'Сотрудник получает логин и входит в свой чат',
-    'Все ответы и действия идут через центральный provider'
-  ],
-  screens: [
-    'Login',
-    'Employee workspace',
-    'Owner dashboard',
-    'Agent detail',
-    'Tasks and memory',
-    'Audit log'
-  ]
-};
-
-const workflowBlueprint = [
-  { label: 'Step 1', value: 'Login to personal workspace' },
-  { label: 'Step 2', value: 'Chat with your agent' },
-  { label: 'Step 3', value: 'Create tasks and memory' },
-  { label: 'Step 4', value: 'Audit and history stay private' }
-];
+const STORAGE_KEY = 'agenthub-mvp-state-v2';
 
 const demoUsers = [
-  { id: 'joni', name: 'Joni', role: 'owner', title: 'Owner / admin', password: 'demo', agentId: 'owner-agent' },
-  { id: 'sergey', name: 'Сергей', role: 'employee', title: 'Support lead', password: 'demo', agentId: 'sergey-agent' },
-  { id: 'maria', name: 'Марина', role: 'employee', title: 'Sales lead', password: 'demo', agentId: 'sales-agent' },
-  { id: 'oleg', name: 'Олег', role: 'employee', title: 'Ops manager', password: 'demo', agentId: 'ops-agent' }
+  { id: 'sergey', name: 'Сергей', title: 'Support lead', password: 'demo', agentId: 'sergey-agent' },
+  { id: 'marina', name: 'Марина', title: 'Sales lead', password: 'demo', agentId: 'marina-agent' }
 ];
 
-const loginAliases = new Map([
-  ['joni', 'joni'],
-  ['sergey', 'sergey'],
-  ['сергей', 'sergey'],
-  ['марина', 'maria'],
-  ['maria', 'maria'],
-  ['oleg', 'oleg'],
-  ['олег', 'oleg']
-]);
-
 const initialAgents = {
-  'owner-agent': {
-    id: 'owner-agent',
-    name: 'Joni',
-    title: 'Стратегия и контроль',
-    mode: 'approve',
-    model: 'GPT-5',
-    permissions: ['Чтение базы', 'Создание задач', 'Черновики ответов', 'Запрос подтверждения', 'Управление агентами'],
-    quickActions: ['Найти старый договор', 'Показать риски по проекту', 'Собрать статус по команде', 'Создай onboarding checklist'],
-    memory: ['Любит краткие статус-резюме.', 'Все опасные действия должны идти через подтверждение.', 'Нужно держать аудит включенным.'],
-    tasks: [
-      { id: 't1', title: 'Проверить доступы сотрудников', status: 'waiting', details: 'Сверить, кому можно отправлять внешние письма.' },
-      { id: 't2', title: 'Подготовить описание MVP', status: 'todo', details: 'Собрать список экранов и ограничений для первой версии.' }
-    ],
-    messages: [
-      { id: 'm1', role: 'agent', author: 'AgentHub', time: '09:02', text: 'Я на связи. Могу отвечать, собирать статусы, готовить черновики и создавать задачи.' },
-      { id: 'm2', role: 'user', author: 'Joni', time: '09:03', text: 'Сделай MVP для внутреннего AI-панеля.' },
-      { id: 'm3', role: 'agent', author: 'AgentHub', time: '09:03', text: 'Принял. Я бы начал с логина, отдельного агента на сотрудника, чата, памяти, задач и аудита.' }
-    ],
-    audit: [
-      { id: 'a1', text: 'MVP workspace created from seed data.', time: '09:01' },
-      { id: 'a2', text: 'Mode set to approve.', time: '09:02' }
-    ]
-  },
   'sergey-agent': {
     id: 'sergey-agent',
     name: 'Сергей',
-    title: 'Support and internal ops',
+    title: 'Личный рабочий агент',
     mode: 'answer',
     model: 'GPT-5',
-    permissions: ['Чтение базы', 'Черновики ответов', 'Создание задач'],
-    quickActions: ['Ответь клиенту', 'Проверь статус', 'Собери FAQ', 'Найди документ'],
-    memory: ['Сотрудник не настраивает API сам.', 'Агент создаётся центральным provider-слоем.', 'Работает как личный чат в Telegram.'],
+    quickActions: ['Сделай черновик ответа', 'Найди документ', 'Создай задачу', 'Покажи статус'],
     tasks: [
-      { id: 't7', title: 'Ответить на тикет по доступам', status: 'todo', details: 'Использовать готовый internal flow без ручной интеграции.' }
+      { id: 't1', title: 'Ответить на тикет по доступам', details: 'Подготовить короткий черновик ответа', status: 'todo' },
+      { id: 't2', title: 'Собрать FAQ', details: 'Вытащить частые вопросы из истории', status: 'waiting' }
     ],
     messages: [
-      { id: 'm10', role: 'agent', author: 'AgentHub', time: '09:10', text: 'Сергей, я уже создан. Тебе не нужно подключать API или делать настройку. Просто пиши мне сюда.' },
-      { id: 'm11', role: 'user', author: 'Сергей', time: '09:11', text: 'Сделай ответ на тикет по доступам.' },
-      { id: 'm12', role: 'agent', author: 'AgentHub', time: '09:11', text: 'Готовлю черновик ответа и отмечаю задачу в очередь.' }
-    ],
-    audit: [
-      { id: 'a7', text: 'Agent provisioned by central provider.', time: '09:10' }
+      { id: 'm1', role: 'agent', author: 'Агент Сергея', time: '09:02', text: 'Я уже создан. Пиши сюда как в Telegram, API тебе не нужен.' },
+      { id: 'm2', role: 'user', author: 'Сергей', time: '09:03', text: 'Сделай черновик ответа на тикет по доступам.' },
+      { id: 'm3', role: 'agent', author: 'Агент Сергея', time: '09:03', text: 'Готово. Могу сразу превратить это в задачу или отредактировать текст.' }
     ]
   },
-  'sales-agent': {
-    id: 'sales-agent',
+  'marina-agent': {
+    id: 'marina-agent',
     name: 'Марина',
-    title: 'Продажи и коммуникации',
+    title: 'Личный рабочий агент',
     mode: 'suggest',
     model: 'GPT-5',
-    permissions: ['Чтение базы', 'Черновики ответов', 'Создание задач'],
-    quickActions: ['Составь ответ клиенту', 'Найди прайс', 'Подготовь follow-up', 'Собери коммерческое'],
-    memory: ['Нельзя обещать сроки без подтверждения производства.', 'Клиентам нужен короткий, уверенный стиль.', 'Часто просит сравнить варианты.'],
+    quickActions: ['Составь ответ клиенту', 'Проверь прайс', 'Сделай follow-up', 'Создай задачу'],
     tasks: [
-      { id: 't3', title: 'Ответить на запрос по срокам', status: 'todo', details: 'Нужно проверить, есть ли подтвержденные даты по отгрузке.' },
-      { id: 't4', title: 'Подготовить follow-up клиенту', status: 'done', details: 'Черновик отправлен на согласование.' }
+      { id: 't3', title: 'Ответить клиенту по срокам', details: 'Сначала проверить подтвержденную дату', status: 'todo' },
+      { id: 't4', title: 'Подготовить follow-up', details: 'Сделать короткий и уверенный текст', status: 'done' }
     ],
     messages: [
-      { id: 'm4', role: 'agent', author: 'AgentHub', time: '08:50', text: 'Я помогу собрать ответ клиенту, но сначала проверю, есть ли подтвержденные сроки.' },
+      { id: 'm4', role: 'agent', author: 'Агент Марины', time: '08:50', text: 'Я веду твой личный workspace. Здесь только твой чат, задачи и история.' },
       { id: 'm5', role: 'user', author: 'Марина', time: '08:52', text: 'Сделай короткий ответ по прайсу и срокам.' },
-      { id: 'm6', role: 'agent', author: 'AgentHub', time: '08:52', text: 'Готовлю черновик: прайс пришлю отдельно, по срокам отвечу после сверки с производством.' }
-    ],
-    audit: [
-      { id: 'a3', text: 'Draft reply generated for client.', time: '08:52' },
-      { id: 'a4', text: 'Pricing lookup requested.', time: '08:53' }
-    ]
-  },
-  'ops-agent': {
-    id: 'ops-agent',
-    name: 'Олег',
-    title: 'Операции и исполнение',
-    mode: 'execute',
-    model: 'GPT-5',
-    permissions: ['Чтение базы', 'Создание задач', 'Исполнение безопасных действий', 'Запрос подтверждения для рискованных действий'],
-    quickActions: ['Открой статус задач', 'Создай заявку на закупку', 'Проверь блокеры', 'Покажи лог ошибок'],
-    memory: ['Операционные действия требуют подтверждения на письма и удаления.', 'Любую закупку нужно логировать.', 'Сначала статус, потом действие.'],
-    tasks: [
-      { id: 't5', title: 'Проверить блокирующие задачи', status: 'blocked', details: 'Нужна верификация по внешней поставке.' },
-      { id: 't6', title: 'Собрать список открытых заявок', status: 'todo', details: 'Поднять только активные заявки за последние 7 дней.' }
-    ],
-    messages: [
-      { id: 'm7', role: 'agent', author: 'AgentHub', time: '08:41', text: 'Я могу выполнять безопасные операции автоматически. Рискованные действия буду ставить на подтверждение.' },
-      { id: 'm8', role: 'user', author: 'Олег', time: '08:42', text: 'Покажи, что заблокировано прямо сейчас.' },
-      { id: 'm9', role: 'agent', author: 'AgentHub', time: '08:42', text: 'Есть один блокер: внешняя поставка не подтверждена. Могу создать задачу на проверку.' }
-    ],
-    audit: [
-      { id: 'a5', text: 'Blocked item highlighted.', time: '08:42' },
-      { id: 'a6', text: 'Safe execution mode enabled.', time: '08:42' }
+      { id: 'm6', role: 'agent', author: 'Агент Марины', time: '08:52', text: 'Ок, сначала проверяю подтвержденные сроки, потом дам черновик.' }
     ]
   }
 };
 
 const state = {
   currentUser: null,
-  currentAgentId: 'owner-agent',
+  currentAgentId: 'sergey-agent',
   agents: structuredClone(initialAgents),
-  pendingPrompt: null,
-  pendingConfirm: null
+  pendingTask: false
 };
 
 const el = {
-  providerModel: document.getElementById('provider-model'),
-  providerRole: document.getElementById('provider-role'),
-  providerDelivery: document.getElementById('provider-delivery'),
-  providerProvisioning: document.getElementById('provider-provisioning'),
-  entityList: document.getElementById('entity-list'),
-  onboardingList: document.getElementById('onboarding-list'),
-  screenList: document.getElementById('screen-list'),
-  workflowGrid: document.getElementById('workflow-grid'),
-  ownerSidebar: document.getElementById('owner-sidebar'),
-  providerPanel: document.getElementById('provider-panel'),
-  blueprintPanel: document.getElementById('blueprint-panel'),
-  workflowPanel: document.getElementById('workflow-panel'),
-  workspaceGrid: document.getElementById('workspace-grid'),
   authCard: document.getElementById('auth-card'),
   dashboard: document.getElementById('dashboard'),
   loginForm: document.getElementById('login-form'),
@@ -185,10 +59,8 @@ const el = {
   logoutBtn: document.getElementById('logout-btn'),
   profileName: document.getElementById('profile-name'),
   profileMeta: document.getElementById('profile-meta'),
-  profileRole: document.getElementById('profile-role'),
-  agentList: document.getElementById('agent-list'),
-  permissionList: document.getElementById('permission-list'),
   workspaceTitle: document.getElementById('workspace-title'),
+  workspaceHint: document.getElementById('workspace-hint'),
   modelLabel: document.getElementById('model-label'),
   modeLabel: document.getElementById('mode-label'),
   taskCount: document.getElementById('task-count'),
@@ -200,12 +72,8 @@ const el = {
   messageInput: document.getElementById('message-input'),
   sendBtn: document.getElementById('send-btn'),
   taskList: document.getElementById('task-list'),
-  memoryList: document.getElementById('memory-list'),
-  auditList: document.getElementById('audit-list'),
+  workflowGrid: document.getElementById('workflow-grid'),
   newTaskBtn: document.getElementById('new-task-btn'),
-  addMemoryBtn: document.getElementById('add-memory-btn'),
-  confirmModal: document.getElementById('confirm-modal'),
-  confirmText: document.getElementById('confirm-text'),
   promptModal: document.getElementById('prompt-modal'),
   promptTitle: document.getElementById('prompt-title'),
   promptLabel: document.getElementById('prompt-label'),
@@ -235,118 +103,37 @@ function restore() {
 }
 
 function now() {
-  const d = new Date();
-  return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  return new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 }
 
 function currentAgent() {
   return state.agents[state.currentAgentId];
 }
 
-function isOwner() {
-  return state.currentUser?.role === 'owner';
+function addMessage(role, text, author = role === 'user' ? state.currentUser.name : `Агент ${currentAgent().name}`) {
+  currentAgent().messages.push({ id: crypto.randomUUID(), role, author, time: now(), text });
 }
 
-function addAudit(text) {
-  const agent = currentAgent();
-  agent.audit.unshift({ id: crypto.randomUUID(), text, time: now() });
-  agent.audit = agent.audit.slice(0, 8);
-}
-
-function addMessage(role, text, author = role === 'user' ? state.currentUser.name : 'AgentHub') {
-  const agent = currentAgent();
-  agent.messages.push({ id: crypto.randomUUID(), role, author, time: now(), text });
-  if (role === 'user') {
-    addAudit(`User message sent: ${text.slice(0, 60)}`);
-  }
-}
-
-function addTask(title, details, status = 'todo') {
-  const agent = currentAgent();
-  agent.tasks.unshift({ id: crypto.randomUUID(), title, details, status });
-  agent.tasks = agent.tasks.slice(0, 8);
-  addAudit(`Task created: ${title}`);
-}
-
-function addMemory(entry) {
-  const agent = currentAgent();
-  agent.memory.unshift(entry);
-  agent.memory = agent.memory.slice(0, 8);
-  addAudit(`Memory fact added: ${entry}`);
+function addTask(title, details) {
+  currentAgent().tasks.unshift({
+    id: crypto.randomUUID(),
+    title,
+    details,
+    status: 'todo'
+  });
+  currentAgent().tasks = currentAgent().tasks.slice(0, 8);
 }
 
 function setAgentMode(mode) {
   currentAgent().mode = mode;
-  addAudit(`Mode set to ${mode}`);
   render();
   persist();
 }
 
-function agentReply(input) {
-  const agent = currentAgent();
-  const text = input.toLowerCase();
-  const mode = agent.mode;
-
-  if (/удали|delete|remove|отправь|send external|напиши клиенту/.test(text)) {
-    return {
-      type: 'confirm',
-      title: 'Требуется подтверждение',
-      text: 'Это действие может затронуть внешние данные. Подтвердить выполнение?'
-    };
-  }
-
-  if (/создай задачу|задачу|task/.test(text)) {
-    const title = input.replace(/создай задачу|создай|task/gi, '').trim() || 'Новая задача';
-    addTask(title || 'Новая задача', 'Создана из чата агентом.');
-    return {
-      type: 'text',
-      text: mode === 'execute'
-        ? `Готово: задача «${title || 'Новая задача'}» добавлена в очередь.`
-        : `Предлагаю добавить задачу: «${title || 'Новая задача'}». Подтверди, если ок.`
-    };
-  }
-
-  if (/найди|поиск|документ|прайс|цена/.test(text)) {
-    return {
-      type: 'text',
-      text: 'Нашёл релевантные материалы. В MVP это мок-ответ: прайс, договор и шаблон письма доступны в базе знаний.'
-    };
-  }
-
-  if (/статус|блок|риск|block/.test(text)) {
-    return {
-      type: 'text',
-      text: 'Сейчас вижу один блокер по внешней поставке и две задачи в очереди. Могу оформить follow-up или запросить подтверждение.'
-    };
-  }
-
-  if (/привет|hello|hi/.test(text)) {
-    return {
-      type: 'text',
-      text: mode === 'answer'
-        ? 'Принял. Могу ответить, искать данные, создавать задачи или запросить подтверждение на действие.'
-        : 'Готов. Дай команду или вопрос, и я разберу его по режиму агента.'
-    };
-  }
-
-  if (mode === 'suggest') {
-    return {
-      type: 'text',
-      text: 'Я бы сначала собрал контекст, затем предложил черновик и только потом отправлял внешнее действие.'
-    };
-  }
-
-  if (mode === 'execute') {
-    return {
-      type: 'text',
-      text: 'Выполняю безопасный сценарий: обновил статус, записал событие в аудит и сохранил результат в памяти.'
-    };
-  }
-
-  return {
-    type: 'text',
-    text: 'Собрал краткий ответ. Для MVP этого достаточно, дальше можно подключить API, базу знаний и реальные инструменты.'
-  };
+function renderAuthState() {
+  const loggedIn = Boolean(state.currentUser);
+  el.authCard.classList.toggle('hidden', loggedIn);
+  el.dashboard.classList.toggle('hidden', !loggedIn);
 }
 
 function renderUserSelect() {
@@ -356,91 +143,16 @@ function renderUserSelect() {
   }
 }
 
-function renderAuthState() {
-  const loggedIn = Boolean(state.currentUser);
-  el.authCard.classList.toggle('hidden', loggedIn);
-  el.dashboard.classList.toggle('hidden', !loggedIn);
-}
-
-function renderProviderPanel() {
-  el.providerModel.textContent = aiProvider.model;
-  el.providerRole.textContent = aiProvider.role;
-  el.providerDelivery.textContent = aiProvider.delivery;
-  el.providerProvisioning.textContent = aiProvider.provisioning;
-
-  el.entityList.innerHTML = platformBlueprint.entities.map(function (entity) {
-    return '<div class="blueprint-item"><div class="blueprint-name">' + entity.name + '</div><div class="blueprint-detail">' + entity.detail + '</div></div>';
-  }).join('');
-
-  el.onboardingList.innerHTML = platformBlueprint.onboarding.map(function (step, index) {
-    return '<div class="blueprint-step"><div class="step-index">' + String(index + 1).padStart(2, '0') + '</div><div class="blueprint-detail">' + step + '</div></div>';
-  }).join('');
-
-  el.screenList.innerHTML = platformBlueprint.screens.map(function (screen) {
-    return '<div class="screen-pill">' + screen + '</div>';
-  }).join('');
-}
-
-function renderWorkflowPanel() {
+function renderHeader() {
   const agent = currentAgent();
-  const workflow = [
-    { label: 'Current mode', value: agent.mode },
-    { label: 'Open tasks', value: String(agent.tasks.filter(function (task) { return task.status !== 'done'; }).length) },
-    { label: 'Memory facts', value: String(agent.memory.length) },
-    { label: 'Private history', value: String(agent.messages.length) }
-  ];
-
-  el.workflowGrid.innerHTML = workflowBlueprint.map(function (item, index) {
-    const detail = workflow[index];
-    return '<div class="workflow-card"><div class="workflow-label">' + item.label + '</div><div class="workflow-value">' + item.value + '</div><div class="blueprint-detail" style="margin-top:8px">' + detail.label + ': ' + detail.value + '</div></div>';
-  }).join('');
-}
-
-function applyRoleVisibility() {
-  const ownerView = isOwner();
-  el.ownerSidebar.classList.toggle('hidden', !ownerView);
-  el.providerPanel.classList.toggle('hidden', !ownerView);
-  el.blueprintPanel.classList.toggle('hidden', !ownerView);
-  el.workflowPanel.classList.toggle('hidden', ownerView);
-}
-
-function renderSidebar() {
-  const agentEntries = isOwner()
-    ? Object.values(state.agents)
-    : [state.agents[state.currentUser.agentId]];
-
-  el.agentList.innerHTML = agentEntries.map((agent) => {
-    const active = agent.id === state.currentAgentId ? 'active' : '';
-    return `
-      <div class="agent-item ${active}" data-agent="${agent.id}">
-        <div>
-          <div class="agent-name">${agent.name}</div>
-          <div class="profile-meta">${agent.title}</div>
-        </div>
-        <div class="agent-status">${agent.mode}</div>
-      </div>
-    `;
-  }).join('');
-
-  const agent = currentAgent();
-  el.permissionList.innerHTML = agent.permissions.map((permission) => `
-    <div class="permission-item">${permission}</div>
-  `).join('');
-
   el.profileName.textContent = state.currentUser.name;
-  el.profileMeta.textContent = `${state.currentUser.title} · ${state.currentUser.role}`;
-  el.profileRole.textContent = `Доступ к агенту: ${agent.name}`;
-}
-
-function renderTopbar() {
-  const agent = currentAgent();
+  el.profileMeta.textContent = `${state.currentUser.title} · личное пространство`;
   el.workspaceTitle.textContent = `${agent.name} · ${agent.title}`;
+  el.workspaceHint.textContent = 'Сотрудник видит только свой чат, свои задачи и свой workflow.';
   el.modelLabel.textContent = agent.model;
   el.modeLabel.textContent = agent.mode;
-  el.taskCount.textContent = agent.tasks.filter((task) => task.status !== 'done').length;
-  el.chatSubtitle.textContent = isOwner()
-    ? 'Owner видит всех сотрудников и может переключать агентов.'
-    : 'Сотрудник видит только свой workspace и свои права.';
+  el.taskCount.textContent = String(agent.tasks.filter((task) => task.status !== 'done').length);
+  el.chatSubtitle.textContent = 'Личный чат сотрудника и его агента.';
 }
 
 function renderModes() {
@@ -496,21 +208,19 @@ function renderTasks() {
   `).join('');
 }
 
-function renderMemory() {
+function renderWorkflow() {
   const agent = currentAgent();
-  el.memoryList.innerHTML = agent.memory.map((entry) => `
-    <div class="memory-item">${entry}</div>
-  `).join('');
-}
+  const workflow = [
+    { label: 'Current mode', value: agent.mode },
+    { label: 'Open tasks', value: String(agent.tasks.filter((task) => task.status !== 'done').length) },
+    { label: 'Chat history', value: String(agent.messages.length) },
+    { label: 'Agent', value: agent.name }
+  ];
 
-function renderAudit() {
-  const agent = currentAgent();
-  el.auditList.innerHTML = agent.audit.map((entry) => `
-    <div class="audit-item">
-      <div class="task-top">
-        <div>${entry.text}</div>
-        <div class="panel-subtitle">${entry.time}</div>
-      </div>
+  el.workflowGrid.innerHTML = workflow.map((item) => `
+    <div class="workflow-card">
+      <div class="workflow-label">${item.label}</div>
+      <div class="workflow-value">${item.value}</div>
     </div>
   `).join('');
 }
@@ -521,48 +231,48 @@ function render() {
     renderAuthState();
     return;
   }
+
   renderAuthState();
-  applyRoleVisibility();
-  renderSidebar();
-  if (isOwner()) {
-    renderProviderPanel();
-  } else {
-    renderWorkflowPanel();
-  }
-  renderTopbar();
+  renderHeader();
   renderModes();
   renderQuickActions();
   renderMessages();
   renderTasks();
-  renderMemory();
-  renderAudit();
+  renderWorkflow();
   persist();
 }
 
-function setCurrentAgent(agentId) {
-  if (!state.agents[agentId]) return;
-  state.currentAgentId = agentId;
-  addAudit(`Switched to agent ${agentId}`);
-  render();
-}
+function processUserMessage(message) {
+  const agent = currentAgent();
+  addMessage('user', message, state.currentUser.name);
 
-function handleAgentResponse(response, fallbackText) {
-  if (response.type === 'confirm') {
-    state.pendingConfirm = { text: response.text, title: response.title, fallbackText };
-    el.confirmText.textContent = response.text;
-    el.confirmModal.showModal();
-    return;
+  const lower = message.toLowerCase();
+  let reply = '';
+
+  if (/задач|task|сделай/.test(lower)) {
+    const title = message.replace(/создай|сделай|задачу|task/gi, '').trim() || 'Новая задача';
+    addTask(title, 'Создано из чата.');
+    reply = agent.mode === 'execute'
+      ? `Готово: задача «${title}» добавлена.`
+      : `Могу добавить задачу «${title}». Подтверди, если ок.`;
+  } else if (/прайс|цена|документ|найди|поиск/.test(lower)) {
+    reply = 'Понял. В MVP это мок-поиск: найду релевантный шаблон, прайс или документ в личной базе.';
+  } else if (/статус|блок|риск/.test(lower)) {
+    reply = 'Вижу текущий статус: есть открытые задачи и один блокер, если он есть в твоей очереди.';
+  } else if (/привет|hello|hi/.test(lower)) {
+    reply = agent.mode === 'answer'
+      ? 'На связи. Пиши вопрос, задачу или короткую команду.'
+      : 'Готов. Могу предложить решение, спланировать шаги или выполнить безопасный сценарий.';
+  } else if (agent.mode === 'suggest') {
+    reply = 'Сначала соберу контекст, потом предложу черновик и только затем действие.';
+  } else if (agent.mode === 'execute') {
+    reply = 'Выполняю безопасный сценарий и фиксирую результат в текущем workspace.';
+  } else {
+    reply = 'Принял. Могу отвечать, искать, создавать задачи и вести твой личный workflow.';
   }
 
-  addMessage('agent', response.text);
-  addAudit('Agent replied to message.');
+  addMessage('agent', reply, `Агент ${agent.name}`);
   render();
-}
-
-function processUserMessage(message) {
-  addMessage('user', message, state.currentUser.name);
-  const response = agentReply(message);
-  handleAgentResponse(response, message);
 }
 
 function sendCurrentMessage() {
@@ -574,27 +284,23 @@ function sendCurrentMessage() {
 }
 
 function bindEvents() {
-  const clearPasswordError = () => {
-    el.password.setCustomValidity('');
-  };
+  const clearPasswordError = () => el.password.setCustomValidity('');
 
   el.password.addEventListener('input', clearPasswordError);
   el.userSelect.addEventListener('change', clearPasswordError);
 
   el.loginForm.addEventListener('submit', (event) => {
     event.preventDefault();
-    const rawLogin = String(el.userSelect.value || '').trim().toLowerCase();
-    const userId = loginAliases.get(rawLogin) || rawLogin;
-    const user = demoUsers.find((item) => item.id === userId || item.name.toLowerCase() === rawLogin);
+    const user = demoUsers.find((item) => item.id === el.userSelect.value);
     if (!user || el.password.value !== user.password) {
       el.password.setCustomValidity('Неверный demo-пароль');
       el.password.reportValidity();
       return;
     }
+
     el.password.setCustomValidity('');
     state.currentUser = user;
     state.currentAgentId = user.agentId;
-    addAudit(`User ${user.name} logged in.`);
     render();
   });
 
@@ -609,13 +315,6 @@ function bindEvents() {
     state.currentAgentId = demoUsers[0].agentId;
     localStorage.removeItem(STORAGE_KEY);
     render();
-  });
-
-  el.agentList.addEventListener('click', (event) => {
-    const target = event.target.closest('[data-agent]');
-    if (!target) return;
-    if (!isOwner() && target.dataset.agent !== state.currentUser.agentId) return;
-    setCurrentAgent(target.dataset.agent);
   });
 
   el.modeSwitch.addEventListener('click', (event) => {
@@ -650,11 +349,9 @@ function bindEvents() {
   el.taskList.addEventListener('click', (event) => {
     const button = event.target.closest('[data-task-id][data-task-status]');
     if (!button) return;
-    const agent = currentAgent();
-    const task = agent.tasks.find((item) => item.id === button.dataset.taskId);
+    const task = currentAgent().tasks.find((item) => item.id === button.dataset.taskId);
     if (!task) return;
     task.status = button.dataset.taskStatus;
-    addAudit(`Task "${task.title}" moved to ${task.status}.`);
     render();
   });
 
@@ -662,53 +359,22 @@ function bindEvents() {
     el.promptTitle.textContent = 'Новая задача';
     el.promptLabel.textContent = 'Название';
     el.promptInput.value = '';
-    state.pendingPrompt = 'task';
-    el.promptModal.showModal();
-  });
-
-  el.addMemoryBtn.addEventListener('click', () => {
-    el.promptTitle.textContent = 'Новый факт памяти';
-    el.promptLabel.textContent = 'Факт';
-    el.promptInput.value = '';
-    state.pendingPrompt = 'memory';
+    state.pendingTask = true;
     el.promptModal.showModal();
   });
 
   el.promptModal.addEventListener('close', () => {
-    if (el.promptModal.returnValue !== 'ok') {
-      state.pendingPrompt = null;
+    if (el.promptModal.returnValue !== 'ok' || !state.pendingTask) {
+      state.pendingTask = false;
       return;
     }
+
     const value = el.promptInput.value.trim();
-    if (!value) {
-      state.pendingPrompt = null;
-      return;
-    }
-    if (state.pendingPrompt === 'task') {
-      addTask(value, 'Создано вручную через панель.');
-    } else if (state.pendingPrompt === 'memory') {
-      addMemory(value);
-    }
-    state.pendingPrompt = null;
-    render();
-  });
+    state.pendingTask = false;
+    if (!value) return;
 
-  el.confirmModal.addEventListener('close', () => {
-    if (el.confirmModal.returnValue !== 'ok' || !state.pendingConfirm) {
-      state.pendingConfirm = null;
-      return;
-    }
-    const responseText = 'Подтверждено. В MVP я бы передал это в backend-очередь и зафиксировал действие в аудит.';
-    addMessage('agent', responseText);
-    addAudit('Confirmed high-risk action.');
-    state.pendingConfirm = null;
+    addTask(value, 'Создано вручную через панель.');
     render();
-  });
-
-  window.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') {
-      state.pendingPrompt = null;
-    }
   });
 }
 
