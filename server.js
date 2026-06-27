@@ -16,6 +16,7 @@ const OPENCLAW_GATEWAY_URL = process.env.OPENCLAW_GATEWAY_URL || '';
 const OPENCLAW_GATEWAY_TOKEN = process.env.OPENCLAW_GATEWAY_TOKEN || '';
 const OPENCLAW_GATEWAY_PASSWORD = process.env.OPENCLAW_GATEWAY_PASSWORD || '';
 const AGENTS_DIR = path.join(ROOT, 'agents');
+let gatewayConfigWarned = false;
 
 if (!DATABASE_URL) {
   console.error('DATABASE_URL is required');
@@ -421,10 +422,16 @@ function extractOpenClawText(payload) {
 }
 
 async function askOpenClawGateway(workspace, userText, agentFiles) {
-  if (!OPENCLAW_GATEWAY_URL) return null;
+  if (!OPENCLAW_GATEWAY_URL) {
+    if (!gatewayConfigWarned) {
+      console.warn('OpenClaw gateway disabled: OPENCLAW_GATEWAY_URL is empty');
+      gatewayConfigWarned = true;
+    }
+    return null;
+  }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 4500);
+  const timeoutId = setTimeout(() => controller.abort(), 20000);
   const headers = { 'Content-Type': 'application/json' };
   if (OPENCLAW_GATEWAY_TOKEN) {
     headers.Authorization = 'Bearer ' + OPENCLAW_GATEWAY_TOKEN;
@@ -446,12 +453,16 @@ async function askOpenClawGateway(workspace, userText, agentFiles) {
       })
     });
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      console.warn('OpenClaw gateway request failed:', response.status, response.statusText);
+      return null;
+    }
 
     const data = await response.json();
     const text = extractOpenClawText(data);
     return text || null;
-  } catch {
+  } catch (error) {
+    console.warn('OpenClaw gateway request error:', error && error.message ? error.message : error);
     return null;
   } finally {
     clearTimeout(timeoutId);
@@ -459,12 +470,7 @@ async function askOpenClawGateway(workspace, userText, agentFiles) {
 }
 
 async function answerWorkspaceMessage(workspace, userText, agentFiles) {
-  const gatewayPromise = askOpenClawGateway(workspace, userText, agentFiles);
-  const fallbackPromise = new Promise((resolve) => {
-    setTimeout(() => resolve(null), 1800);
-  });
-
-  const reply = await Promise.race([gatewayPromise, fallbackPromise]);
+  const reply = await askOpenClawGateway(workspace, userText, agentFiles);
   return reply || generateWorkflowReply(workspace, userText, agentFiles);
 }
 
@@ -523,8 +529,9 @@ async function handleMessage(req, res) {
       : ctx.workspace.model;
     await saveWorkspace(ctx.workspace);
     sendJson(res, 200, { workspace: ctx.workspace, reply: reply });
-  } catch {
-    sendJson(res, 400, { error: 'invalid_json' });
+  } catch (error) {
+    console.error('Failed to handle /api/message:', error);
+    sendJson(res, 500, { error: 'message_failed' });
   }
 }
 

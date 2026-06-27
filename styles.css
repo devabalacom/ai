@@ -533,7 +533,7 @@ button, input, select { font: inherit; }
   }
 
   .chat-panel {
-    height: auto;
-    max-height: none;
+    height: calc(100dvh - 24px);
+    max-height: calc(100dvh - 24px);
   }
 }

@@ -133,6 +133,16 @@ function currentWorkspace() {
   return state.workspace || (state.currentUser ? state.localWorkspaces[state.currentUser.agentId] : null);
 }
 
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  })[char]);
+}
+
 function now() {
   return new Intl.DateTimeFormat('ru-RU', {
     timeZone: TIME_ZONE,
@@ -148,7 +158,8 @@ function scrollMessagesToBottom() {
 }
 
 function statusBadge(status) {
-  return `<span class="badge ${status}">${status}</span>`;
+  const safeStatus = escapeHtml(status);
+  return `<span class="badge ${safeStatus}">${safeStatus}</span>`;
 }
 
 function renderAuthState() {
@@ -184,16 +195,16 @@ function renderWorkspace() {
   `).join('');
 
   el.quickActions.innerHTML = workspace.quickActions.map((item) => `
-    <button class="quick-chip" type="button" data-quick="${item}">${item}</button>
+    <button class="quick-chip" type="button" data-quick="${escapeHtml(item)}">${escapeHtml(item)}</button>
   `).join('');
 
   el.messages.innerHTML = workspace.messages.map((message) => `
-    <article class="message ${message.role}">
+    <article class="message ${escapeHtml(message.role)}">
       <div class="message-meta">
-        <span>${message.author}</span>
-        <span>${message.time}</span>
+        <span>${escapeHtml(message.author)}</span>
+        <span>${escapeHtml(message.time)}</span>
       </div>
-      <div>${message.text}</div>
+      <div>${escapeHtml(message.text)}</div>
     </article>
   `).join('');
   scrollMessagesToBottom();
@@ -202,15 +213,15 @@ function renderWorkspace() {
     <div class="task-item">
       <div class="task-top">
         <div>
-          <div class="task-title">${task.title}</div>
-          <div class="panel-subtitle">${task.details}</div>
+          <div class="task-title">${escapeHtml(task.title)}</div>
+          <div class="panel-subtitle">${escapeHtml(task.details)}</div>
         </div>
         ${statusBadge(task.status)}
       </div>
       <div class="task-actions">
-        <button type="button" data-task-status="todo" data-task-id="${task.id}">Todo</button>
-        <button type="button" data-task-status="waiting" data-task-id="${task.id}">Waiting</button>
-        <button type="button" data-task-status="done" data-task-id="${task.id}">Done</button>
+        <button type="button" data-task-status="todo" data-task-id="${escapeHtml(task.id)}">Todo</button>
+        <button type="button" data-task-status="waiting" data-task-id="${escapeHtml(task.id)}">Waiting</button>
+        <button type="button" data-task-status="done" data-task-id="${escapeHtml(task.id)}">Done</button>
       </div>
     </div>
   `).join('');
@@ -224,8 +235,8 @@ function renderWorkspace() {
 
   el.workflowGrid.innerHTML = workflow.map((item) => `
     <div class="workflow-card">
-      <div class="workflow-label">${item.label}</div>
-      <div class="workflow-value">${item.value}</div>
+      <div class="workflow-label">${escapeHtml(item.label)}</div>
+      <div class="workflow-value">${escapeHtml(item.value)}</div>
     </div>
   `).join('');
 }
@@ -377,15 +388,12 @@ async function setWorkspaceMode(mode) {
 async function sendMessage(text) {
   if (!state.currentUser) return;
   if (state.sendingMessage) return;
+  const safeText = String(text || '').trim();
+  if (!safeText) return;
   state.sendingMessage = true;
   render();
   const previousText = el.messageInput.value;
   const workspace = currentWorkspace();
-  const safeText = String(text || '').trim();
-  if (!safeText) {
-    state.sendingMessage = false;
-    return;
-  }
 
   if (workspace) {
     addLocalMessage(workspace, 'user', safeText, state.currentUser.name);
@@ -409,17 +417,16 @@ async function sendMessage(text) {
     render();
   } catch (error) {
     if (workspace) {
-      const last = workspace.messages[workspace.messages.length - 1];
-      if (last && last.role === 'user' && last.text === safeText) {
-        workspace.messages.pop();
-      }
+      addLocalMessage(workspace, 'agent', 'Не удалось получить ответ от сервера. Сообщение сохранено локально, попробуй отправить ещё раз.', 'Система');
       state.workspace = workspace;
+      persistLocal();
       render();
     }
     el.messageInput.value = previousText || safeText;
     alert('Не удалось отправить сообщение. Попробуй еще раз.');
   } finally {
     state.sendingMessage = false;
+    render();
   }
 }
 
