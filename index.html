@@ -100,10 +100,10 @@
                   </div>
                 </div>
                 <div class="quick-actions" id="quick-actions"></div>
-                <div class="messages" id="messages" aria-label="История чата"></div>
+                <div class="messages" id="messages" aria-label="История чата" role="log" aria-live="polite"></div>
                 <form class="composer" id="composer">
-                  <input id="message-input" type="text" placeholder="Напишите, что нужно сделать" autocomplete="off">
-                  <button class="primary-btn" id="send-btn" type="button">Отправить</button>
+                  <input id="message-input" type="text" placeholder="Напишите, что нужно сделать" autocomplete="off" aria-label="Ввод сообщения">
+                  <button class="primary-btn" id="send-btn" type="button" aria-label="Отправить сообщение">Отправить</button>
                 </form>
               </section>
 
@@ -117,24 +117,24 @@
                   </div>
                 </section>
 
-                <section class="panel view-panel" data-panel="missions">
+                <section class="panel view-panel" data-panel="missions" aria-label="Поручения">
                   <div class="panel-head slim">
                     <div>
                       <div class="panel-title">Поручения</div>
                       <div class="panel-subtitle">Цель, план, прогресс и результат работы помощника</div>
                     </div>
                   </div>
-                  <div class="mission-list" id="mission-list"></div>
+                  <div class="mission-list" id="mission-list" role="list"></div>
                 </section>
 
-                <section class="panel view-panel" data-panel="tasks">
+                <section class="panel view-panel" data-panel="tasks" aria-label="Задачи">
                   <div class="panel-head slim">
                     <div>
                       <div class="panel-title">Задачи</div>
                       <div class="panel-subtitle">То, что нужно не забыть или довести до конца</div>
                     </div>
                   </div>
-                  <div class="task-list" id="task-list"></div>
+                  <div class="task-list" id="task-list" role="list"></div>
                 </section>
 
                 <section class="panel view-panel" data-panel="artifacts">

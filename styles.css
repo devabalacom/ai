@@ -6,21 +6,34 @@
   --line: rgba(148, 163, 184, 0.2);
   --line-strong: rgba(148, 163, 184, 0.34);
   --text: #e6edf7;
-  --muted: #93a4ba;
-  --soft: #c5cfdd;
+  --muted: #a0b5cc;
+  --soft: #cbd8e8;
   --accent: #38bdf8;
+  --accent-hover: #22c9ff;
   --accent-2: #f59e0b;
   --success: #22c55e;
   --danger: #f87171;
   --shadow: 0 16px 44px rgba(0, 0, 0, 0.28);
-  --radius-xl: 8px;
+  --shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.16);
+  --shadow-xs: 0 2px 8px rgba(0, 0, 0, 0.12);
+  --radius-xl: 12px;
   --radius-md: 8px;
   --radius-sm: 6px;
+  --transition: 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-* { box-sizing: border-box; }
+* { 
+  box-sizing: border-box; 
+}
 
-html, body { min-height: 100%; }
+*:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+html, body { 
+  min-height: 100%; 
+}
 
 body {
   margin: 0;
@@ -28,6 +41,7 @@ body {
   color: var(--text);
   background: linear-gradient(180deg, #08111c 0%, #060a12 100%);
   overflow-x: hidden;
+  line-height: 1.6;
 }
 
 h1, h2, .brand, .panel-title {
@@ -35,7 +49,9 @@ h1, h2, .brand, .panel-title {
   letter-spacing: 0;
 }
 
-button, input, select { font: inherit; }
+button, input, select { 
+  font: inherit; 
+}
 
 .page-bg {
   position: fixed;
@@ -50,7 +66,9 @@ button, input, select { font: inherit; }
   padding: 24px 0 32px;
 }
 
-.hidden { display: none !important; }
+.hidden { 
+  display: none !important; 
+}
 
 .auth-card, .panel, .topbar, .side-nav {
   border: 1px solid var(--line);
@@ -62,8 +80,8 @@ button, input, select { font: inherit; }
 .auth-card {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.7fr);
-  gap: 24px;
-  padding: 24px;
+  gap: 32px;
+  padding: 32px;
   min-height: calc(100vh - 56px);
   align-items: stretch;
 }
@@ -84,15 +102,15 @@ button, input, select { font: inherit; }
   align-items: center;
   gap: 8px;
   color: var(--accent);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
 .auth-copy h1 {
-  font-size: clamp(2.1rem, 5vw, 4.2rem);
-  line-height: 1;
+  font-size: clamp(2rem, 5vw, 4rem);
+  line-height: 1.1;
   margin: 12px 0 0;
   max-width: 13ch;
 }
@@ -101,14 +119,14 @@ button, input, select { font: inherit; }
   margin: 18px 0 0;
   max-width: 60ch;
   color: var(--soft);
-  font-size: 1.02rem;
-  line-height: 1.65;
+  font-size: 1rem;
+  line-height: 1.6;
 }
 
 .feature-list, .credential-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 12px;
   margin-top: auto;
 }
 
@@ -122,24 +140,28 @@ button, input, select { font: inherit; }
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.035);
   border-radius: var(--radius-md);
+  transition: all var(--transition);
 }
 
 .feature-list div {
   padding: 14px 16px;
   color: #dce7f8;
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .auth-form {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
   justify-content: center;
-  padding: 8px;
+  padding: 0;
 }
 
 .panel-title {
-  font-size: 18px;
-  font-weight: 800;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .auth-form label,
@@ -147,7 +169,8 @@ button, input, select { font: inherit; }
   display: grid;
   gap: 8px;
   color: var(--soft);
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .auth-form input,
@@ -160,8 +183,10 @@ button, input, select { font: inherit; }
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.04);
   color: var(--text);
-  padding: 14px 16px;
+  padding: 12px 14px;
   outline: none;
+  font-size: 14px;
+  transition: all var(--transition);
 }
 
 .auth-form input:focus,
@@ -170,25 +195,42 @@ button, input, select { font: inherit; }
 .composer input:focus,
 .agent-settings input:focus,
 .agent-settings textarea:focus {
-  border-color: rgba(56, 189, 248, 0.64);
-  box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.12);
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
 }
 
 .primary-btn, .ghost-btn, .chip {
   border-radius: var(--radius-md);
   border: 1px solid transparent;
   cursor: pointer;
-  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, opacity 160ms ease;
+  transition: all var(--transition);
+  font-weight: 600;
+  font-size: 14px;
 }
 
-.primary-btn:hover, .ghost-btn:hover, .chip:hover { transform: translateY(-1px); }
-
 .primary-btn {
-  padding: 13px 18px;
+  padding: 12px 20px;
   color: #06101c;
-  font-weight: 900;
+  font-weight: 700;
   background: #7dd3fc;
   box-shadow: 0 16px 34px rgba(56, 189, 248, 0.14);
+}
+
+.primary-btn:hover {
+  background: var(--accent-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 20px 44px rgba(56, 189, 248, 0.24);
+}
+
+.primary-btn:active {
+  transform: translateY(0);
+}
+
+.primary-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .ghost-btn, .chip {
@@ -196,6 +238,22 @@ button, input, select { font: inherit; }
   color: var(--text);
   background: rgba(255, 255, 255, 0.04);
   border-color: var(--line);
+}
+
+.ghost-btn:hover, .chip:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--line-strong);
+  transform: translateY(-1px);
+}
+
+.ghost-btn:active, .chip:active {
+  transform: translateY(0);
+}
+
+.ghost-btn:disabled, .chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .auth-hint {
@@ -223,6 +281,8 @@ button, input, select { font: inherit; }
 .credential-grid code {
   color: #f8d77a;
   overflow-wrap: anywhere;
+  font-family: "Monaco", "Courier New", monospace;
+  font-size: 12px;
 }
 
 .dashboard {
@@ -232,7 +292,7 @@ button, input, select { font: inherit; }
 .control-layout {
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
-  gap: 16px;
+  gap: 20px;
   align-items: start;
 }
 
@@ -240,29 +300,32 @@ button, input, select { font: inherit; }
   position: sticky;
   top: 24px;
   display: grid;
-  gap: 18px;
+  gap: 20px;
   min-height: calc(100dvh - 56px);
-  padding: 16px;
+  padding: 20px;
   background: #0d1522;
+  transition: background var(--transition);
 }
 
 .brand-block {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   align-items: center;
-  padding-bottom: 14px;
+  padding-bottom: 16px;
   border-bottom: 1px solid var(--line);
 }
 
 .brand-mark {
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   border-radius: var(--radius-md);
   display: grid;
   place-items: center;
   background: var(--accent);
   color: #06101c;
-  font-weight: 900;
+  font-weight: 700;
+  font-size: 16px;
+  flex-shrink: 0;
 }
 
 .brand-block strong,
@@ -270,9 +333,15 @@ button, input, select { font: inherit; }
   display: block;
 }
 
+.brand-block strong {
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .brand-block span {
   color: var(--muted);
   font-size: 12px;
+  margin-top: 2px;
 }
 
 .nav-list {
@@ -284,14 +353,26 @@ button, input, select { font: inherit; }
 .nav-list a {
   color: var(--soft);
   text-decoration: none;
-  padding: 10px 12px;
+  padding: 12px 14px;
   border-radius: var(--radius-md);
+  transition: all var(--transition);
+  font-size: 14px;
+  font-weight: 500;
 }
 
-.nav-list a.active,
+.nav-list a.active {
+  color: var(--text);
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
 .nav-list a:hover {
   color: var(--text);
   background: rgba(56, 189, 248, 0.11);
+}
+
+.nav-list a:focus-visible {
+  outline-offset: -2px;
 }
 
 .logout-wide {
@@ -301,21 +382,22 @@ button, input, select { font: inherit; }
 
 .control-main {
   display: grid;
-  gap: 16px;
+  gap: 20px;
   min-width: 0;
 }
 
 .topbar {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
+  gap: 20px;
   align-items: end;
-  padding: 18px 20px;
+  padding: 20px 24px;
 }
 
 .topbar h2 {
-  font-size: clamp(1.45rem, 3vw, 2.15rem);
-  margin: 6px 0 0;
+  font-size: clamp(1.4rem, 3vw, 2.1rem);
+  margin: 8px 0 0;
+  font-weight: 700;
 }
 
 .topbar-stats {
@@ -350,10 +432,12 @@ button, input, select { font: inherit; }
   display: block;
   margin-top: 6px;
   font-size: 18px;
+  font-weight: 700;
 }
 
 .panel {
-  padding: 18px;
+  padding: 20px;
+  transition: background var(--transition), border-color var(--transition);
 }
 
 .profile-meta, .panel-subtitle {
@@ -364,7 +448,7 @@ button, input, select { font: inherit; }
 
 .workspace {
   display: grid;
-  gap: 18px;
+  gap: 20px;
   min-width: 0;
   min-height: 0;
 }
@@ -372,7 +456,7 @@ button, input, select { font: inherit; }
 .grid {
   display: grid;
   grid-template-columns: minmax(0, 1.38fr) minmax(330px, 0.9fr);
-  gap: 16px;
+  gap: 20px;
   align-items: stretch;
   min-height: 0;
 }
@@ -383,7 +467,7 @@ button, input, select { font: inherit; }
   max-height: calc(100dvh - 210px);
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
-  gap: 14px;
+  gap: 16px;
 }
 
 .panel-head {
@@ -394,25 +478,35 @@ button, input, select { font: inherit; }
 }
 
 .panel-head.slim {
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .mode-switch, .quick-actions, .task-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 12px;
 }
 
 .mode-chip, .quick-chip, .task-actions button, .artifact-actions button {
-  padding: 9px 11px;
+  padding: 10px 14px;
   border-radius: var(--radius-md);
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.04);
   color: var(--soft);
   cursor: pointer;
+  transition: all var(--transition);
+  font-size: 13px;
+  font-weight: 500;
 }
 
-.mode-chip.active, .quick-chip:hover {
+.mode-chip.active {
+  border-color: rgba(56, 189, 248, 0.48);
+  color: var(--accent);
+  background: rgba(56, 189, 248, 0.16);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.1);
+}
+
+.quick-chip:hover, .task-actions button:hover, .artifact-actions button:hover {
   border-color: rgba(56, 189, 248, 0.48);
   color: var(--text);
   background: rgba(56, 189, 248, 0.12);
@@ -426,6 +520,7 @@ button, input, select { font: inherit; }
   padding-right: 4px;
   min-height: 0;
   overscroll-behavior: contain;
+  scroll-behavior: smooth;
 }
 
 .message {
@@ -434,6 +529,18 @@ button, input, select { font: inherit; }
   border-radius: var(--radius-md);
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.04);
+  animation: slideIn 200ms var(--transition) forwards;
+  opacity: 0;
+  transform: translateY(8px);
+  line-height: 1.5;
+  font-size: 14px;
+}
+
+@keyframes slideIn {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .message.user {
@@ -454,47 +561,49 @@ button, input, select { font: inherit; }
 .composer {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
+  gap: 12px;
 }
 
 .stack-column {
   display: grid;
-  gap: 16px;
+  gap: 20px;
   align-content: start;
   min-height: 0;
 }
 
 .today-summary {
   display: grid;
-  gap: 10px;
-  margin: 14px 0;
+  gap: 12px;
+  margin: 16px 0;
 }
 
 .today-summary div {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 0;
+  padding: 12px 0;
   border-bottom: 1px solid var(--line);
 }
 
 .today-summary strong {
-  font-size: 24px;
+  font-size: 22px;
+  font-weight: 700;
 }
 
 .today-summary span {
   color: var(--muted);
+  font-size: 13px;
 }
 
 .today-actions {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .workflow-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 12px;
 }
 
 .workflow-card {
@@ -503,26 +612,29 @@ button, input, select { font: inherit; }
 
 .agent-settings {
   display: grid;
-  gap: 12px;
-  margin-top: 14px;
+  gap: 16px;
+  margin-top: 16px;
 }
 
 .agent-settings label {
   display: grid;
-  gap: 7px;
+  gap: 8px;
   color: var(--soft);
   font-size: 13px;
+  font-weight: 500;
 }
 
 .agent-settings textarea {
   resize: vertical;
   min-height: 110px;
+  font-family: "Manrope", system-ui, sans-serif;
 }
 
 .settings-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 12px;
+  margin-top: 8px;
 }
 
 .workflow-label {
@@ -530,21 +642,22 @@ button, input, select { font: inherit; }
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+  font-weight: 600;
 }
 
 .workflow-value {
   margin-top: 8px;
   font-size: 16px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .task-list, .mission-list, .artifact-list, .onboarding-list {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .empty-state {
-  padding: 16px;
+  padding: 20px;
   border: 1px dashed var(--line-strong);
   border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.025);
@@ -553,6 +666,8 @@ button, input, select { font: inherit; }
 .empty-state strong {
   display: block;
   margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .empty-state p {
@@ -566,6 +681,11 @@ button, input, select { font: inherit; }
   padding: 14px;
 }
 
+.task-item:hover, .mission-item:hover, .artifact-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--line-strong);
+}
+
 .task-top, .mission-top {
   display: flex;
   justify-content: space-between;
@@ -574,23 +694,39 @@ button, input, select { font: inherit; }
 }
 
 .task-title {
-  font-weight: 800;
+  font-weight: 600;
+  font-size: 14px;
 }
 
 .badge {
   padding: 6px 10px;
   border-radius: var(--radius-sm);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
-.badge.todo { background: rgba(56, 189, 248, 0.14); color: #a5f3fc; }
-.badge.waiting { background: rgba(245, 158, 11, 0.14); color: #fbbf24; }
-.badge.done { background: rgba(34, 197, 94, 0.14); color: #86efac; }
-.badge.blocked { background: rgba(248, 113, 113, 0.14); color: #fca5a5; }
-.badge.running { background: rgba(245, 158, 11, 0.14); color: #fbbf24; }
+.badge.todo { 
+  background: rgba(56, 189, 248, 0.14); 
+  color: #a5f3fc; 
+}
+.badge.waiting { 
+  background: rgba(245, 158, 11, 0.14); 
+  color: #fbbf24; 
+}
+.badge.done { 
+  background: rgba(34, 197, 94, 0.14); 
+  color: #86efac; 
+}
+.badge.blocked { 
+  background: rgba(248, 113, 113, 0.14); 
+  color: #fca5a5; 
+}
+.badge.running { 
+  background: rgba(245, 158, 11, 0.14); 
+  color: #fbbf24; 
+}
 
 .progress-track {
   height: 8px;
@@ -609,13 +745,13 @@ button, input, select { font: inherit; }
 
 .mission-steps {
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
 .mission-step {
   display: grid;
   grid-template-columns: 12px minmax(0, 1fr);
-  gap: 8px;
+  gap: 10px;
   align-items: start;
 }
 
@@ -625,10 +761,15 @@ button, input, select { font: inherit; }
   margin-top: 5px;
   border-radius: 999px;
   background: rgba(148, 163, 184, 0.44);
+  transition: background var(--transition);
 }
 
-.mission-step.done span { background: var(--success); }
-.mission-step.running span { background: var(--accent-2); }
+.mission-step.done span { 
+  background: var(--success); 
+}
+.mission-step.running span { 
+  background: var(--accent-2); 
+}
 
 .mission-step p {
   margin: 0;
@@ -640,7 +781,7 @@ button, input, select { font: inherit; }
 .artifact-meta {
   color: var(--accent);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   margin-bottom: 8px;
@@ -649,6 +790,8 @@ button, input, select { font: inherit; }
 .artifact-item strong {
   display: block;
   margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .artifact-item p {
@@ -667,6 +810,11 @@ button, input, select { font: inherit; }
   cursor: pointer;
   font-size: 13px;
   margin-bottom: 8px;
+  transition: color var(--transition);
+}
+
+.artifact-item summary:hover {
+  color: var(--accent-hover);
 }
 
 .artifact-item pre {
@@ -674,9 +822,12 @@ button, input, select { font: inherit; }
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   color: var(--soft);
-  font-family: "Manrope", system-ui, sans-serif;
-  font-size: 13px;
+  font-family: "Monaco", "Courier New", monospace;
+  font-size: 12px;
   line-height: 1.5;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 12px;
+  border-radius: var(--radius-sm);
 }
 
 .artifact-actions {
@@ -696,8 +847,13 @@ button, input, select { font: inherit; }
 .onboarding-step {
   display: grid;
   grid-template-columns: 28px minmax(0, 1fr);
-  gap: 10px;
+  gap: 12px;
   padding: 12px;
+}
+
+.onboarding-step:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--line-strong);
 }
 
 .onboarding-step span {
@@ -708,12 +864,16 @@ button, input, select { font: inherit; }
   border-radius: var(--radius-sm);
   color: #06101c;
   background: var(--accent);
-  font-weight: 900;
+  font-weight: 700;
+  font-size: 13px;
+  flex-shrink: 0;
 }
 
 .onboarding-step strong {
   display: block;
   margin-bottom: 4px;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .onboarding-step p {
@@ -737,7 +897,7 @@ button, input, select { font: inherit; }
 .modal-card {
   width: min(520px, calc(100vw - 24px));
   border-radius: var(--radius-xl);
-  padding: 22px;
+  padding: 24px;
   border: 1px solid var(--line);
   background: var(--panel);
   color: var(--text);
@@ -747,8 +907,8 @@ button, input, select { font: inherit; }
 .modal-actions {
   display: flex;
   justify-content: end;
-  gap: 10px;
-  margin-top: 18px;
+  gap: 12px;
+  margin-top: 24px;
 }
 
 @media (max-width: 1100px) {
@@ -766,6 +926,25 @@ button, input, select { font: inherit; }
   }
 }
 
+@media (max-width: 880px) {
+  .nav-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .feature-list, .credential-grid, .workflow-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar {
+    flex-direction: column;
+    align-items: start;
+  }
+
+  .topbar-summary {
+    text-align: left;
+  }
+}
+
 @media (max-width: 720px) {
   .app-shell {
     width: min(100vw - 16px, 100%);
@@ -774,7 +953,8 @@ button, input, select { font: inherit; }
 
   .auth-card {
     min-height: auto;
-    padding: 14px;
+    padding: 20px;
+    gap: 24px;
   }
 
   .auth-copy, .panel, .topbar, .side-nav {
@@ -783,19 +963,6 @@ button, input, select { font: inherit; }
 
   .feature-list, .credential-grid, .workflow-grid, .nav-list {
     grid-template-columns: 1fr;
-  }
-
-  .topbar {
-    align-items: start;
-    flex-direction: column;
-  }
-
-  .topbar-summary {
-    text-align: left;
-  }
-
-  .topbar-stats {
-    justify-content: start;
   }
 
   .composer {
@@ -810,4 +977,40 @@ button, input, select { font: inherit; }
   .message {
     max-width: 100%;
   }
+
+  .control-layout {
+    gap: 16px;
+  }
+
+  .workspace {
+    gap: 16px;
+  }
+}
+
+/* Typing indicator animation */
+@keyframes typing {
+  0%, 60%, 100% { opacity: 0.5; }
+  30% { opacity: 1; }
+}
+
+.typing-indicator {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.typing-indicator span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+  animation: typing 1.4s infinite;
+}
+
+.typing-indicator span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-indicator span:nth-child(3) {
+  animation-delay: 0.4s;
 }

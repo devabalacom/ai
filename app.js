@@ -306,20 +306,44 @@ function renderWorkspace() {
     <button class="quick-chip" type="button" data-quick="${escapeHtml(item)}">${escapeHtml(item)}</button>
   `).join('');
 
-  el.messages.innerHTML = workspace.messages.length ? workspace.messages.map((message) => `
+  el.messages.innerHTML = workspace.messages.length ? workspace.messages.map((message) => {
+    const copyBtnHtml = message.role !== 'user' ? `<button class="copy-msg-btn" data-copy="${escapeHtml(message.text).replace(/"/g, '&quot;')}" style="padding: 4px 8px; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 4px; color: var(--soft); cursor: pointer; font-size: 12px; font-weight: 500; transition: all 200ms ease;" title="Скопировать">📋</button>` : '';
+    return `
     <article class="message ${escapeHtml(message.role)}">
       <div class="message-meta">
-        <span>${escapeHtml(message.author)}</span>
+        <div style="display: flex; gap: 12px; align-items: center;">
+          <span>${escapeHtml(message.author)}</span>
+          ${copyBtnHtml}
+        </div>
         <span>${escapeHtml(message.time)}</span>
       </div>
       <div>${escapeHtml(message.text)}</div>
     </article>
-  `).join('') : `
+  `}).join('') : `
     <div class="empty-state">
       <strong>Настройте агента и начните с первого запроса</strong>
       <p>У этого сотрудника отдельная история. Сообщения других людей сюда не попадают.</p>
     </div>
   `;
+
+  // Attach copy button listeners
+  document.querySelectorAll('.copy-msg-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const text = btn.dataset.copy;
+      navigator.clipboard.writeText(text).then(() => {
+        const originalText = btn.textContent;
+        btn.textContent = '✓';
+        btn.style.background = 'rgba(34, 197, 94, 0.2)';
+        setTimeout(() => {
+          btn.textContent = originalText;
+          btn.style.background = 'rgba(56, 189, 248, 0.1)';
+        }, 2000);
+      }).catch(err => {
+        console.error('Copy failed:', err);
+      });
+    });
+  });
+
   scrollMessagesToBottom();
 
   el.taskList.innerHTML = workspace.tasks.length ? workspace.tasks.map((task) => `
@@ -594,6 +618,33 @@ async function setWorkspaceMode(mode) {
   render();
 }
 
+function showTypingIndicator() {
+  const msgEl = document.getElementById('messages');
+  if (!msgEl) return;
+  const existingTyping = document.getElementById('typing-indicator-msg');
+  if (existingTyping) return;
+  
+  const typingHtml = `
+    <article class="message assistant" id="typing-indicator-msg">
+      <div class="message-meta">
+        <span>Помощник</span>
+      </div>
+      <div class="typing-indicator">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+    </article>
+  `;
+  msgEl.insertAdjacentHTML('beforeend', typingHtml);
+  msgEl.scrollTop = msgEl.scrollHeight;
+}
+
+function hideTypingIndicator() {
+  const indicator = document.getElementById('typing-indicator-msg');
+  if (indicator) indicator.remove();
+}
+
 async function sendMessage(text) {
   if (!state.currentUser) return;
   if (state.sendingMessage) return;
@@ -611,13 +662,19 @@ async function sendMessage(text) {
 
   try {
     if (state.apiAvailable) {
+      showTypingIndicator();
       const result = await apiRequest('/api/message', {
         method: 'POST',
         body: JSON.stringify({ text: safeText })
       });
+      hideTypingIndicator();
       state.workspace = result.workspace;
     } else if (workspace) {
+      showTypingIndicator();
+      // Simulate API delay for better UX
+      await new Promise(resolve => setTimeout(resolve, 800));
       const reply = generateReply(workspace, safeText);
+      hideTypingIndicator();
       addLocalMessage(workspace, 'agent', reply, agentDisplayName(workspace));
       state.workspace = workspace;
       persistLocal();
@@ -625,6 +682,7 @@ async function sendMessage(text) {
     el.messageInput.value = '';
     render();
   } catch (error) {
+    hideTypingIndicator();
     if (workspace) {
       addLocalMessage(workspace, 'agent', 'Не удалось получить ответ от сервера. Сообщение сохранено локально, попробуй отправить ещё раз.', 'Система');
       state.workspace = workspace;
@@ -634,6 +692,7 @@ async function sendMessage(text) {
     el.messageInput.value = previousText || safeText;
     alert('Не удалось отправить сообщение. Попробуй еще раз.');
   } finally {
+    hideTypingIndicator();
     state.sendingMessage = false;
     render();
   }
