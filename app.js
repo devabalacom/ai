@@ -108,20 +108,30 @@ function restoreLocal() {
   }
 }
 
+function recoverUnauthorized() {
+  state.currentUser = null;
+  state.workspace = null;
+  state.sendingMessage = false;
+  state.pendingTask = false;
+  if (el.authCard && el.dashboard) render();
+}
+
 async function apiRequest(path, options = {}) {
+  const { allowUnauthorized = false, headers = {}, ...fetchOptions } = options;
   const url = API_BASE ? API_BASE + path : path;
   const response = await fetch(url, {
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      ...(options.headers || {})
+      ...headers
     },
-    ...options
+    ...fetchOptions
   });
 
   if (!response.ok) {
     const error = new Error('Request failed');
     error.status = response.status;
+    if (response.status === 401 && !allowUnauthorized) recoverUnauthorized();
     throw error;
   }
 
@@ -151,6 +161,13 @@ function now() {
   }).format(new Date());
 }
 
+function newId() {
+  if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+    return window.crypto.randomUUID();
+  }
+  return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
+
 function scrollMessagesToBottom() {
   requestAnimationFrame(() => {
     el.messages.scrollTop = el.messages.scrollHeight;
@@ -169,8 +186,19 @@ function renderAuthState() {
 }
 
 function renderUserSelect() {
-  el.userSelect.innerHTML = state.users.map((user) => `<option value="${user.id}">${user.name} · ${user.title}</option>`).join('');
-  if (!el.userSelect.value && state.users[0]) el.userSelect.value = state.users[0].id;
+  const selected = el.userSelect.value;
+  const options = state.users.map((user) => {
+    const option = document.createElement('option');
+    option.value = String(user.id);
+    option.textContent = `${user.name} · ${user.title}`;
+    return option;
+  });
+  el.userSelect.replaceChildren(...options);
+  if (state.users.some((user) => String(user.id) === selected)) {
+    el.userSelect.value = selected;
+  } else if (state.users[0]) {
+    el.userSelect.value = String(state.users[0].id);
+  }
 }
 
 function renderWorkspace() {
@@ -254,12 +282,12 @@ function render() {
 }
 
 function addLocalMessage(workspace, role, text, author) {
-  workspace.messages.push({ id: crypto.randomUUID(), role, author, time: now(), text });
+  workspace.messages.push({ id: newId(), role, author, time: now(), text });
   workspace.messages = workspace.messages.slice(-50);
 }
 
 function addLocalTask(workspace, title, details) {
-  workspace.tasks.unshift({ id: crypto.randomUUID(), title, details, status: 'todo' });
+  workspace.tasks.unshift({ id: newId(), title, details, status: 'todo' });
   workspace.tasks = workspace.tasks.slice(0, 12);
 }
 
@@ -323,7 +351,7 @@ async function loadUsers() {
 async function loadSession() {
   if (state.apiAvailable) {
     try {
-      const me = await apiRequest('/api/me');
+      const me = await apiRequest('/api/me', { allowUnauthorized: true });
       state.currentUser = me.user;
       state.workspace = me.workspace;
       return Boolean(state.currentUser && state.workspace);

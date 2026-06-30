@@ -131,7 +131,13 @@ function parseCookies(req) {
   const entries = cookieHeader.split(';').map((part) => part.trim()).filter(Boolean).map((part) => {
     const idx = part.indexOf('=');
     if (idx === -1) return null;
-    return [part.slice(0, idx), decodeURIComponent(part.slice(idx + 1))];
+    let value = part.slice(idx + 1);
+    try {
+      value = decodeURIComponent(value);
+    } catch {
+      value = '';
+    }
+    return [part.slice(0, idx), value];
   }).filter(Boolean);
   return Object.fromEntries(entries);
 }
@@ -148,6 +154,19 @@ function setCorsHeaders(res) {
 function sendJson(res, statusCode, payload) {
   res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(payload));
+}
+
+function asyncHandler(req, res, handler) {
+  Promise.resolve()
+    .then(handler)
+    .catch((error) => {
+      console.error('Unhandled route error:', error);
+      if (!res.headersSent && !res.writableEnded) {
+        sendJson(res, 500, { error: 'server_error' });
+      } else if (!res.writableEnded) {
+        res.end();
+      }
+    });
 }
 
 function readBody(req) {
@@ -620,25 +639,27 @@ async function main() {
 
     if (pathname === '/api/health' && req.method === 'GET') return sendJson(res, 200, { ok: true });
     if (pathname === '/api/users' && req.method === 'GET') {
-      pool.query('SELECT id, name, title, agent_id FROM users ORDER BY id').then((result) => {
+      asyncHandler(req, res, async () => {
+        const result = await pool.query('SELECT id, name, title, agent_id FROM users ORDER BY id');
         sendJson(res, 200, result.rows.map((row) => ({ id: row.id, name: row.name, title: row.title, agentId: row.agent_id })) );
-      }).catch(() => sendJson(res, 500, { error: 'db_error' }));
+      });
       return;
     }
     if (pathname === '/api/me' && req.method === 'GET') {
-      getAuthenticatedContext(req, res).then((ctx) => {
+      asyncHandler(req, res, async () => {
+        const ctx = await getAuthenticatedContext(req, res);
         if (!ctx) return;
         sendJson(res, 200, { user: ctx.user, workspace: ctx.workspace });
-      }).catch(() => sendJson(res, 500, { error: 'db_error' }));
+      });
       return;
     }
-    if (pathname === '/api/login' && req.method === 'POST') { handleLogin(req, res); return; }
-    if (pathname === '/api/logout' && req.method === 'POST') { handleLogout(req, res); return; }
-    if (pathname === '/api/message' && req.method === 'POST') { handleMessage(req, res); return; }
-    if (pathname === '/api/workspace/mode' && req.method === 'POST') { handleMode(req, res); return; }
-    if (pathname === '/api/tasks' && req.method === 'POST') { handleTasks(req, res); return; }
+    if (pathname === '/api/login' && req.method === 'POST') { asyncHandler(req, res, () => handleLogin(req, res)); return; }
+    if (pathname === '/api/logout' && req.method === 'POST') { asyncHandler(req, res, () => handleLogout(req, res)); return; }
+    if (pathname === '/api/message' && req.method === 'POST') { asyncHandler(req, res, () => handleMessage(req, res)); return; }
+    if (pathname === '/api/workspace/mode' && req.method === 'POST') { asyncHandler(req, res, () => handleMode(req, res)); return; }
+    if (pathname === '/api/tasks' && req.method === 'POST') { asyncHandler(req, res, () => handleTasks(req, res)); return; }
     const taskMatch = pathname.match(/^\/api\/tasks\/([^/]+)$/);
-    if (taskMatch && req.method === 'PATCH') { handleTasks(req, res, taskMatch[1]); return; }
+    if (taskMatch && req.method === 'PATCH') { asyncHandler(req, res, () => handleTasks(req, res, taskMatch[1])); return; }
     if (pathname.startsWith('/api/')) { sendJson(res, 404, { error: 'not_found' }); return; }
     serveStatic(res, pathname);
   });

@@ -16,7 +16,8 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       PORT: 3000
       DATABASE_URL: postgres://agenthub:agenthub_dev_password@db:5432/agenthub
