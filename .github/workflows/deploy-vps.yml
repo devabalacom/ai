@@ -1,0 +1,39 @@
+name: Deploy VPS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - agenthub-vps
+
+    steps:
+      - name: Update server checkout
+        run: |
+          git -C /opt/agenthub/ai fetch origin main
+          git -C /opt/agenthub/ai reset --hard origin/main
+
+      - name: Rebuild and restart
+        run: |
+          cd /opt/agenthub/ai
+          docker compose up -d --build --remove-orphans
+
+      - name: Show containers
+        run: |
+          cd /opt/agenthub/ai
+          docker compose ps
+
