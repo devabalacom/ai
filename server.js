@@ -26,13 +26,13 @@ if (!DATABASE_URL) {
 const pool = new Pool({ connectionString: DATABASE_URL });
 
 const seedUsers = [
-  { id: 'sergey', name: 'Сергей', title: 'Support lead', password: 'demo', agentId: 'sergey-agent' },
-  { id: 'marina', name: 'Марина', title: 'Sales lead', password: 'demo', agentId: 'marina-agent' }
+  { id: 'support', name: 'Алина', title: 'Support operations', password: 'Support#2026', agentId: 'support-agent' },
+  { id: 'sales', name: 'Дамир', title: 'Sales manager', password: 'Sales#2026', agentId: 'sales-agent' }
 ];
 
 function seedWorkspace(userName, mode, quickActions, tasks, messages) {
   return {
-    id: userName === 'Сергей' ? 'sergey-agent' : 'marina-agent',
+    id: userName === 'Алина' ? 'support-agent' : 'sales-agent',
     name: userName,
     title: 'Личный рабочий агент',
     mode: mode,
@@ -44,7 +44,7 @@ function seedWorkspace(userName, mode, quickActions, tasks, messages) {
 }
 
 const seedWorkspaces = [
-  seedWorkspace('Сергей', 'answer', [
+  seedWorkspace('Алина', 'answer', [
     'Сделай черновик ответа',
     'Найди документ',
     'Создай задачу',
@@ -53,11 +53,11 @@ const seedWorkspaces = [
     { id: 't1', title: 'Ответить на тикет по доступам', details: 'Подготовить короткий черновик ответа', status: 'todo' },
     { id: 't2', title: 'Собрать FAQ', details: 'Вытащить частые вопросы из истории', status: 'waiting' }
   ], [
-    { id: 'm1', role: 'agent', author: 'Агент Сергея', time: '09:02', text: 'Я уже создан. Пиши сюда как в Telegram, API тебе не нужен.' },
-    { id: 'm2', role: 'user', author: 'Сергей', time: '09:03', text: 'Сделай черновик ответа на тикет по доступам.' },
-    { id: 'm3', role: 'agent', author: 'Агент Сергея', time: '09:03', text: 'Готово. Могу сразу превратить это в задачу или отредактировать текст.' }
+    { id: 'm1', role: 'agent', author: 'Агент Алины', time: '09:02', text: 'Я уже создан. Пиши сюда как в Telegram, API тебе не нужен.' },
+    { id: 'm2', role: 'user', author: 'Алина', time: '09:03', text: 'Сделай черновик ответа на тикет по доступам.' },
+    { id: 'm3', role: 'agent', author: 'Агент Алины', time: '09:03', text: 'Готово. Могу сразу превратить это в задачу или отредактировать текст.' }
   ]),
-  seedWorkspace('Марина', 'suggest', [
+  seedWorkspace('Дамир', 'suggest', [
     'Составь ответ клиенту',
     'Проверь прайс',
     'Сделай follow-up',
@@ -66,9 +66,9 @@ const seedWorkspaces = [
     { id: 't3', title: 'Ответить клиенту по срокам', details: 'Сначала проверить подтвержденную дату', status: 'todo' },
     { id: 't4', title: 'Подготовить follow-up', details: 'Сделать короткий и уверенный текст', status: 'done' }
   ], [
-    { id: 'm4', role: 'agent', author: 'Агент Марины', time: '08:50', text: 'Я веду твой личный workspace. Здесь только твой чат, задачи и история.' },
-    { id: 'm5', role: 'user', author: 'Марина', time: '08:52', text: 'Сделай короткий ответ по прайсу и срокам.' },
-    { id: 'm6', role: 'agent', author: 'Агент Марины', time: '08:52', text: 'Ок, сначала проверяю подтвержденные сроки, потом дам черновик.' }
+    { id: 'm4', role: 'agent', author: 'Агент Дамира', time: '08:50', text: 'Я веду твой личный workspace. Здесь только твой чат, задачи и история.' },
+    { id: 'm5', role: 'user', author: 'Дамир', time: '08:52', text: 'Сделай короткий ответ по прайсу и срокам.' },
+    { id: 'm6', role: 'agent', author: 'Агент Дамира', time: '08:52', text: 'Ок, сначала проверяю подтвержденные сроки, потом дам черновик.' }
   ])
 ];
 
@@ -102,25 +102,35 @@ async function initDb() {
     );
   `);
 
-  const existing = await pool.query('SELECT COUNT(*)::int AS count FROM users');
-  if (existing.rows[0].count === 0) {
-    for (const user of seedUsers) {
-      await pool.query('INSERT INTO users (id, name, title, password, agent_id) VALUES ($1, $2, $3, $4, $5)', [
-        user.id, user.name, user.title, user.password, user.agentId
-      ]);
-    }
-    for (const workspace of seedWorkspaces) {
-      await pool.query('INSERT INTO workspaces (id, name, title, mode, model, quick_actions, tasks, messages) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [
-        workspace.id,
-        workspace.name,
-        workspace.title,
-        workspace.mode,
-        workspace.model,
-        JSON.stringify(workspace.quickActions),
-        JSON.stringify(workspace.tasks),
-        JSON.stringify(workspace.messages)
-      ]);
-    }
+  for (const user of seedUsers) {
+    await pool.query(`
+      INSERT INTO users (id, name, title, password, agent_id)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (id) DO UPDATE
+      SET name = EXCLUDED.name,
+          title = EXCLUDED.title,
+          password = EXCLUDED.password,
+          agent_id = EXCLUDED.agent_id
+    `, [user.id, user.name, user.title, user.password, user.agentId]);
+  }
+
+  await pool.query("DELETE FROM users WHERE id IN ('sergey', 'marina')");
+
+  for (const workspace of seedWorkspaces) {
+    await pool.query(`
+      INSERT INTO workspaces (id, name, title, mode, model, quick_actions, tasks, messages)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      ON CONFLICT (id) DO NOTHING
+    `, [
+      workspace.id,
+      workspace.name,
+      workspace.title,
+      workspace.mode,
+      workspace.model,
+      JSON.stringify(workspace.quickActions),
+      JSON.stringify(workspace.tasks),
+      JSON.stringify(workspace.messages)
+    ]);
   }
 
   await pool.query("UPDATE workspaces SET model = 'OpenClaw workflow' WHERE model IS DISTINCT FROM 'OpenClaw workflow'");
@@ -211,10 +221,12 @@ function now() {
 function normalizeLogin(login) {
   const value = String(login || '').trim().toLowerCase();
   const aliases = {
-    sergey: 'sergey',
-    'сергей': 'sergey',
-    marina: 'marina',
-    'марина': 'marina'
+    support: 'support',
+    'алина': 'support',
+    alina: 'support',
+    sales: 'sales',
+    'дамир': 'sales',
+    damir: 'sales'
   };
   return aliases[value] || value;
 }
@@ -277,8 +289,8 @@ function getAgentFiles(agentId) {
 
 function getGatewayModelForWorkspace(workspaceId) {
   const mapping = {
-    'sergey-agent': 'openclaw/worker',
-    'marina-agent': 'openclaw/pm'
+    'support-agent': 'openclaw/worker',
+    'sales-agent': 'openclaw/pm'
   };
   return mapping[workspaceId] || 'openclaw/default';
 }

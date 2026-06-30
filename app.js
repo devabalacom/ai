@@ -3,46 +3,53 @@ const API_BASE = (window.AGENTHUB_API_BASE || '').replace(/\/$/, '');
 const TIME_ZONE = 'Europe/Moscow';
 
 const demoUsers = [
-  { id: 'sergey', name: 'Сергей', title: 'Support lead', password: 'demo', agentId: 'sergey-agent' },
-  { id: 'marina', name: 'Марина', title: 'Sales lead', password: 'demo', agentId: 'marina-agent' }
+  { id: 'support', name: 'Алина', title: 'Support operations', password: 'Support#2026', agentId: 'support-agent' },
+  { id: 'sales', name: 'Дамир', title: 'Sales manager', password: 'Sales#2026', agentId: 'sales-agent' }
 ];
 
 const fallbackWorkspaces = {
-  'sergey-agent': {
-    id: 'sergey-agent',
-    name: 'Сергей',
+  'support-agent': {
+    id: 'support-agent',
+    name: 'Алина',
     title: 'Личный рабочий агент',
     mode: 'answer',
-    model: 'GPT-5',
+    model: 'OpenClaw workflow',
     quickActions: ['Сделай черновик ответа', 'Найди документ', 'Создай задачу', 'Покажи статус'],
     tasks: [
       { id: 't1', title: 'Ответить на тикет по доступам', details: 'Подготовить короткий черновик ответа', status: 'todo' },
       { id: 't2', title: 'Собрать FAQ', details: 'Вытащить частые вопросы из истории', status: 'waiting' }
     ],
     messages: [
-      { id: 'm1', role: 'agent', author: 'Агент Сергея', time: '09:02', text: 'Я уже создан. Пиши сюда как в Telegram, API тебе не нужен.' },
-      { id: 'm2', role: 'user', author: 'Сергей', time: '09:03', text: 'Сделай черновик ответа на тикет по доступам.' },
-      { id: 'm3', role: 'agent', author: 'Агент Сергея', time: '09:03', text: 'Готово. Могу сразу превратить это в задачу или отредактировать текст.' }
+      { id: 'm1', role: 'agent', author: 'Агент Алины', time: '09:02', text: 'Я уже создан. Пиши сюда как в Telegram, API тебе не нужен.' },
+      { id: 'm2', role: 'user', author: 'Алина', time: '09:03', text: 'Сделай черновик ответа на тикет по доступам.' },
+      { id: 'm3', role: 'agent', author: 'Агент Алины', time: '09:03', text: 'Готово. Могу сразу превратить это в задачу или отредактировать текст.' }
     ]
   },
-  'marina-agent': {
-    id: 'marina-agent',
-    name: 'Марина',
+  'sales-agent': {
+    id: 'sales-agent',
+    name: 'Дамир',
     title: 'Личный рабочий агент',
     mode: 'suggest',
-    model: 'GPT-5',
+    model: 'OpenClaw workflow',
     quickActions: ['Составь ответ клиенту', 'Проверь прайс', 'Сделай follow-up', 'Создай задачу'],
     tasks: [
       { id: 't3', title: 'Ответить клиенту по срокам', details: 'Сначала проверить подтвержденную дату', status: 'todo' },
       { id: 't4', title: 'Подготовить follow-up', details: 'Сделать короткий и уверенный текст', status: 'done' }
     ],
     messages: [
-      { id: 'm4', role: 'agent', author: 'Агент Марины', time: '08:50', text: 'Я веду твой личный workspace. Здесь только твой чат, задачи и история.' },
-      { id: 'm5', role: 'user', author: 'Марина', time: '08:52', text: 'Сделай короткий ответ по прайсу и срокам.' },
-      { id: 'm6', role: 'agent', author: 'Агент Марины', time: '08:52', text: 'Ок, сначала проверяю подтвержденные сроки, потом дам черновик.' }
+      { id: 'm4', role: 'agent', author: 'Агент Дамира', time: '08:50', text: 'Я веду твой личный workspace. Здесь только твой чат, задачи и история.' },
+      { id: 'm5', role: 'user', author: 'Дамир', time: '08:52', text: 'Сделай короткий ответ по прайсу и срокам.' },
+      { id: 'm6', role: 'agent', author: 'Агент Дамира', time: '08:52', text: 'Ок, сначала проверяю подтвержденные сроки, потом дам черновик.' }
     ]
   }
 };
+
+const onboardingSteps = [
+  { title: 'Войти', text: 'Выбери свой рабочий аккаунт и введи пароль сотрудника.' },
+  { title: 'Выбрать режим', text: 'Answer отвечает сразу, Suggest предлагает черновик, Approve ждет подтверждения, Execute выполняет безопасные действия.' },
+  { title: 'Поставить задачу', text: 'Напиши команду в чат или создай задачу справа. Агент сохранит контекст в личном workspace.' },
+  { title: 'Проверить очередь', text: 'Следи за задачами, статусами и историей, не выходя из панели.' }
+];
 
 const state = {
   apiAvailable: false,
@@ -78,6 +85,7 @@ const el = {
   sendBtn: document.getElementById('send-btn'),
   taskList: document.getElementById('task-list'),
   workflowGrid: document.getElementById('workflow-grid'),
+  onboardingList: document.getElementById('onboarding-list'),
   newTaskBtn: document.getElementById('new-task-btn'),
   promptModal: document.getElementById('prompt-modal'),
   promptTitle: document.getElementById('prompt-title'),
@@ -209,9 +217,9 @@ function renderWorkspace() {
   el.sendBtn.textContent = state.sendingMessage ? 'Отправляем…' : 'Отправить';
 
   el.profileName.textContent = state.currentUser.name;
-  el.profileMeta.textContent = `${state.currentUser.title} · личное пространство`;
+  el.profileMeta.textContent = `${state.currentUser.title} · личный агент компании`;
   el.workspaceTitle.textContent = `${workspace.name} · ${workspace.title}`;
-  el.workspaceHint.textContent = 'Сотрудник видит только свой чат, свои задачи и свой workflow.';
+  el.workspaceHint.textContent = 'Панель управления личным агентом: чат, режимы, задачи и рабочий контекст.';
   el.modelLabel.textContent = workspace.model;
   el.modeLabel.textContent = workspace.mode;
   el.taskCount.textContent = String(workspace.tasks.filter((task) => task.status !== 'done').length);
@@ -255,9 +263,9 @@ function renderWorkspace() {
   `).join('');
 
   const workflow = [
-    { label: 'Current mode', value: workspace.mode },
+    { label: 'Mode', value: workspace.mode },
     { label: 'Open tasks', value: String(workspace.tasks.filter((task) => task.status !== 'done').length) },
-    { label: 'Chat history', value: String(workspace.messages.length) },
+    { label: 'Messages', value: String(workspace.messages.length) },
     { label: 'Agent', value: workspace.name }
   ];
 
@@ -265,6 +273,16 @@ function renderWorkspace() {
     <div class="workflow-card">
       <div class="workflow-label">${escapeHtml(item.label)}</div>
       <div class="workflow-value">${escapeHtml(item.value)}</div>
+    </div>
+  `).join('');
+
+  el.onboardingList.innerHTML = onboardingSteps.map((step, index) => `
+    <div class="onboarding-step">
+      <span>${index + 1}</span>
+      <div>
+        <strong>${escapeHtml(step.title)}</strong>
+        <p>${escapeHtml(step.text)}</p>
+      </div>
     </div>
   `).join('');
 }
@@ -506,14 +524,14 @@ function bindEvents() {
       await loginUser(String(el.userSelect.value || '').trim(), el.password.value);
       render();
     } catch {
-      el.password.setCustomValidity('Неверный demo-пароль');
+      el.password.setCustomValidity('Неверный пароль сотрудника');
       el.password.reportValidity();
     }
   });
 
   el.demoFill.addEventListener('click', () => {
     el.userSelect.value = demoUsers[0].id;
-    el.password.value = 'demo';
+    el.password.value = demoUsers[0].password;
     clearPasswordError();
   });
 
