@@ -14,7 +14,7 @@ const fallbackWorkspaces = {
     title: 'Личный рабочий агент',
     mode: 'answer',
     model: 'OpenClaw workflow',
-    quickActions: ['Сделай черновик ответа', 'Найди документ', 'Создай задачу', 'Покажи статус'],
+    quickActions: ['Запусти миссию: разобрать тикет', 'Подготовь план ответа клиенту', 'Исследуй проблему доступа', 'Покажи статус миссий'],
     tasks: [
       { id: 't1', title: 'Ответить на тикет по доступам', details: 'Подготовить короткий черновик ответа', status: 'todo' },
       { id: 't2', title: 'Собрать FAQ', details: 'Вытащить частые вопросы из истории', status: 'waiting' }
@@ -31,7 +31,7 @@ const fallbackWorkspaces = {
     title: 'Личный рабочий агент',
     mode: 'suggest',
     model: 'OpenClaw workflow',
-    quickActions: ['Составь ответ клиенту', 'Проверь прайс', 'Сделай follow-up', 'Создай задачу'],
+    quickActions: ['Запусти миссию: подготовить follow-up', 'Проанализируй прайс и сроки', 'Подготовь коммерческий черновик', 'Покажи статус миссий'],
     tasks: [
       { id: 't3', title: 'Ответить клиенту по срокам', details: 'Сначала проверить подтвержденную дату', status: 'todo' },
       { id: 't4', title: 'Подготовить follow-up', details: 'Сделать короткий и уверенный текст', status: 'done' }
@@ -46,9 +46,9 @@ const fallbackWorkspaces = {
 
 const onboardingSteps = [
   { title: 'Войти', text: 'Выбери свой рабочий аккаунт и введи пароль сотрудника.' },
-  { title: 'Выбрать режим', text: 'Answer отвечает сразу, Suggest предлагает черновик, Approve ждет подтверждения, Execute выполняет безопасные действия.' },
-  { title: 'Поставить задачу', text: 'Напиши команду в чат или создай задачу справа. Агент сохранит контекст в личном workspace.' },
-  { title: 'Проверить очередь', text: 'Следи за задачами, статусами и историей, не выходя из панели.' }
+  { title: 'Дать цель', text: 'Запусти Mission: опиши результат, который агент должен подготовить автономно.' },
+  { title: 'Следить за планом', text: 'Агент разложит работу на шаги, покажет прогресс и текущий статус выполнения.' },
+  { title: 'Забрать артефакт', text: 'Готовые черновики, ответы и рабочие результаты появляются в Artifacts.' }
 ];
 
 const state = {
@@ -58,6 +58,7 @@ const state = {
   users: demoUsers,
   localWorkspaces: structuredClone(fallbackWorkspaces),
   pendingTask: false,
+  pendingMission: false,
   sendingMessage: false
 };
 
@@ -84,9 +85,12 @@ const el = {
   messageInput: document.getElementById('message-input'),
   sendBtn: document.getElementById('send-btn'),
   taskList: document.getElementById('task-list'),
+  missionList: document.getElementById('mission-list'),
+  artifactList: document.getElementById('artifact-list'),
   workflowGrid: document.getElementById('workflow-grid'),
   onboardingList: document.getElementById('onboarding-list'),
   newTaskBtn: document.getElementById('new-task-btn'),
+  newMissionBtn: document.getElementById('new-mission-btn'),
   promptModal: document.getElementById('prompt-modal'),
   promptTitle: document.getElementById('prompt-title'),
   promptLabel: document.getElementById('prompt-label'),
@@ -121,6 +125,7 @@ function recoverUnauthorized() {
   state.workspace = null;
   state.sendingMessage = false;
   state.pendingTask = false;
+  state.pendingMission = false;
   if (el.authCard && el.dashboard) render();
 }
 
@@ -185,6 +190,11 @@ function scrollMessagesToBottom() {
 function statusBadge(status) {
   const safeStatus = escapeHtml(status);
   return `<span class="badge ${safeStatus}">${safeStatus}</span>`;
+}
+
+function missionProgress(mission) {
+  const value = Number(mission.progress || 0);
+  return Math.max(0, Math.min(100, value));
 }
 
 function renderAuthState() {
@@ -262,11 +272,41 @@ function renderWorkspace() {
     </div>
   `).join('');
 
+  el.missionList.innerHTML = (workspace.missions || []).map((mission) => `
+    <div class="mission-item">
+      <div class="mission-top">
+        <div>
+          <div class="task-title">${escapeHtml(mission.goal)}</div>
+          <div class="panel-subtitle">Started ${escapeHtml(mission.createdAt || 'now')} · ${escapeHtml(mission.status)}</div>
+        </div>
+        ${statusBadge(mission.status)}
+      </div>
+      <div class="progress-track"><span style="width: ${missionProgress(mission)}%"></span></div>
+      <div class="mission-steps">
+        ${(mission.steps || []).map((step) => `
+          <div class="mission-step ${escapeHtml(step.status)}">
+            <span></span>
+            <p>${escapeHtml(step.title)}</p>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+
+  el.artifactList.innerHTML = (workspace.artifacts || []).map((artifact) => `
+    <article class="artifact-item">
+      <div class="artifact-meta"><span>${escapeHtml(artifact.type || 'artifact')}</span></div>
+      <strong>${escapeHtml(artifact.title)}</strong>
+      <p>${escapeHtml(artifact.summary)}</p>
+      <pre>${escapeHtml(artifact.content)}</pre>
+    </article>
+  `).join('');
+
   const workflow = [
     { label: 'Mode', value: workspace.mode },
+    { label: 'Missions', value: String((workspace.missions || []).length) },
     { label: 'Open tasks', value: String(workspace.tasks.filter((task) => task.status !== 'done').length) },
-    { label: 'Messages', value: String(workspace.messages.length) },
-    { label: 'Agent', value: workspace.name }
+    { label: 'Artifacts', value: String((workspace.artifacts || []).length) }
   ];
 
   el.workflowGrid.innerHTML = workflow.map((item) => `
@@ -309,8 +349,50 @@ function addLocalTask(workspace, title, details) {
   workspace.tasks = workspace.tasks.slice(0, 12);
 }
 
+function buildLocalMission(goal) {
+  const safeGoal = String(goal || '').trim() || 'Новая миссия агента';
+  const artifactId = newId();
+  return {
+    mission: {
+      id: newId(),
+      goal: safeGoal,
+      status: 'running',
+      progress: 75,
+      steps: [
+        { title: 'Понять цель и ожидаемый результат', status: 'done' },
+        { title: 'Разложить работу на шаги', status: 'done' },
+        { title: 'Собрать рабочий черновик', status: 'running' },
+        { title: 'Передать результат сотруднику', status: 'todo' }
+      ],
+      artifactId: artifactId,
+      createdAt: now()
+    },
+    artifact: {
+      id: artifactId,
+      title: 'Рабочий результат: ' + safeGoal.slice(0, 48),
+      type: 'mission',
+      summary: 'Черновик результата, который агент подготовил по заданной цели.',
+      content: 'Цель: ' + safeGoal + '\n\nПлан:\n1. Уточнить контекст.\n2. Выполнить проверку или подготовку.\n3. Собрать результат.\n4. Вернуть сотруднику готовый артефакт.'
+    }
+  };
+}
+
+function startLocalMission(workspace, goal) {
+  const result = buildLocalMission(goal);
+  workspace.missions = [result.mission, ...(workspace.missions || [])].slice(0, 8);
+  workspace.artifacts = [result.artifact, ...(workspace.artifacts || [])].slice(0, 8);
+  addLocalTask(workspace, result.mission.goal, 'Создано как агентская миссия с планом и артефактом.');
+  return result;
+}
+
 function generateReply(workspace, message) {
   const lower = message.toLowerCase();
+
+  if (/мисси|mission|план|исслед|проанализ|подготов|автоном|manus/.test(lower)) {
+    const goal = message.replace(/создай|запусти|миссию|mission|план|агента|manus/gi, '').trim() || message;
+    const result = startLocalMission(workspace, goal);
+    return `Запустил миссию: «${result.mission.goal}». Составил план, начал выполнение и положил черновик результата в Artifacts.`;
+  }
 
   if (/задач|task|сделай/.test(lower)) {
     const title = message.replace(/создай|сделай|задачу|task/gi, '').trim() || 'Новая задача';
@@ -493,6 +575,26 @@ async function createTask(title) {
   render();
 }
 
+async function createMission(goal) {
+  if (!state.currentUser) return;
+  const safeGoal = String(goal || '').trim();
+  if (!safeGoal) return;
+  if (state.apiAvailable) {
+    const result = await apiRequest('/api/missions', {
+      method: 'POST',
+      body: JSON.stringify({ goal: safeGoal })
+    });
+    state.workspace = result.workspace;
+  } else {
+    const workspace = currentWorkspace();
+    const result = startLocalMission(workspace, safeGoal);
+    addLocalMessage(workspace, 'agent', `Запустил миссию: «${result.mission.goal}». План и артефакт уже доступны справа.`, 'Агент ' + workspace.name);
+    state.workspace = workspace;
+    persistLocal();
+  }
+  render();
+}
+
 async function setTaskStatus(taskId, status) {
   if (!state.currentUser) return;
   if (state.apiAvailable) {
@@ -588,15 +690,34 @@ function bindEvents() {
     el.promptModal.showModal();
   });
 
+  el.newMissionBtn.addEventListener('click', () => {
+    el.promptTitle.textContent = 'Новая миссия агента';
+    el.promptLabel.textContent = 'Цель';
+    el.promptInput.value = '';
+    state.pendingMission = true;
+    el.promptModal.showModal();
+  });
+
   el.promptModal.addEventListener('close', async () => {
-    if (el.promptModal.returnValue !== 'ok' || !state.pendingTask) {
+    if (el.promptModal.returnValue !== 'ok' || (!state.pendingTask && !state.pendingMission)) {
       state.pendingTask = false;
+      state.pendingMission = false;
       return;
     }
 
-    state.pendingTask = false;
     const value = el.promptInput.value.trim();
-    if (!value) return;
+    if (!value) {
+      state.pendingTask = false;
+      state.pendingMission = false;
+      return;
+    }
+    if (state.pendingMission) {
+      state.pendingMission = false;
+      state.pendingTask = false;
+      await createMission(value);
+      return;
+    }
+    state.pendingTask = false;
     await createTask(value);
   });
 }

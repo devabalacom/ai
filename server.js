@@ -30,7 +30,7 @@ const seedUsers = [
   { id: 'sales', name: 'Дамир', title: 'Sales manager', password: 'Sales#2026', agentId: 'sales-agent' }
 ];
 
-function seedWorkspace(userName, mode, quickActions, tasks, messages) {
+function seedWorkspace(userName, mode, quickActions, tasks, messages, missions, artifacts) {
   return {
     id: userName === 'Алина' ? 'support-agent' : 'sales-agent',
     name: userName,
@@ -39,16 +39,18 @@ function seedWorkspace(userName, mode, quickActions, tasks, messages) {
     model: 'OpenClaw workflow',
     quickActions: quickActions,
     tasks: tasks,
-    messages: messages
+    messages: messages,
+    missions: missions,
+    artifacts: artifacts
   };
 }
 
 const seedWorkspaces = [
   seedWorkspace('Алина', 'answer', [
-    'Сделай черновик ответа',
-    'Найди документ',
-    'Создай задачу',
-    'Покажи статус'
+    'Запусти миссию: разобрать тикет',
+    'Подготовь план ответа клиенту',
+    'Исследуй проблему доступа',
+    'Покажи статус миссий'
   ], [
     { id: 't1', title: 'Ответить на тикет по доступам', details: 'Подготовить короткий черновик ответа', status: 'todo' },
     { id: 't2', title: 'Собрать FAQ', details: 'Вытащить частые вопросы из истории', status: 'waiting' }
@@ -56,12 +58,29 @@ const seedWorkspaces = [
     { id: 'm1', role: 'agent', author: 'Агент Алины', time: '09:02', text: 'Я уже создан. Пиши сюда как в Telegram, API тебе не нужен.' },
     { id: 'm2', role: 'user', author: 'Алина', time: '09:03', text: 'Сделай черновик ответа на тикет по доступам.' },
     { id: 'm3', role: 'agent', author: 'Агент Алины', time: '09:03', text: 'Готово. Могу сразу превратить это в задачу или отредактировать текст.' }
+  ], [
+    {
+      id: 'mission-support-1',
+      goal: 'Разобрать входящий тикет и подготовить ответ',
+      status: 'done',
+      progress: 100,
+      steps: [
+        { title: 'Понять запрос', status: 'done' },
+        { title: 'Проверить контекст', status: 'done' },
+        { title: 'Собрать черновик', status: 'done' },
+        { title: 'Отдать результат', status: 'done' }
+      ],
+      artifactId: 'artifact-support-1',
+      createdAt: '09:04'
+    }
+  ], [
+    { id: 'artifact-support-1', title: 'Черновик ответа клиенту', type: 'reply', summary: 'Короткий ответ по доступам с понятным следующим шагом.', content: 'Здравствуйте. Проверили доступы: учетная запись активна. Попробуйте войти заново, если ошибка повторится, пришлите скриншот и время попытки входа.' }
   ]),
   seedWorkspace('Дамир', 'suggest', [
-    'Составь ответ клиенту',
-    'Проверь прайс',
-    'Сделай follow-up',
-    'Создай задачу'
+    'Запусти миссию: подготовить follow-up',
+    'Проанализируй прайс и сроки',
+    'Подготовь коммерческий черновик',
+    'Покажи статус миссий'
   ], [
     { id: 't3', title: 'Ответить клиенту по срокам', details: 'Сначала проверить подтвержденную дату', status: 'todo' },
     { id: 't4', title: 'Подготовить follow-up', details: 'Сделать короткий и уверенный текст', status: 'done' }
@@ -69,6 +88,23 @@ const seedWorkspaces = [
     { id: 'm4', role: 'agent', author: 'Агент Дамира', time: '08:50', text: 'Я веду твой личный workspace. Здесь только твой чат, задачи и история.' },
     { id: 'm5', role: 'user', author: 'Дамир', time: '08:52', text: 'Сделай короткий ответ по прайсу и срокам.' },
     { id: 'm6', role: 'agent', author: 'Агент Дамира', time: '08:52', text: 'Ок, сначала проверяю подтвержденные сроки, потом дам черновик.' }
+  ], [
+    {
+      id: 'mission-sales-1',
+      goal: 'Подготовить follow-up клиенту',
+      status: 'running',
+      progress: 75,
+      steps: [
+        { title: 'Определить цель письма', status: 'done' },
+        { title: 'Проверить прайс', status: 'done' },
+        { title: 'Собрать черновик', status: 'running' },
+        { title: 'Передать на подтверждение', status: 'todo' }
+      ],
+      artifactId: 'artifact-sales-1',
+      createdAt: '08:55'
+    }
+  ], [
+    { id: 'artifact-sales-1', title: 'Follow-up клиенту', type: 'draft', summary: 'Черновик письма по срокам и прайсу.', content: 'Добрый день. Подтверждаю актуальные сроки и стоимость. Готов прислать финальное предложение после вашего подтверждения объема.' }
   ])
 ];
 
@@ -91,9 +127,13 @@ async function initDb() {
       model text NOT NULL,
       quick_actions jsonb NOT NULL,
       tasks jsonb NOT NULL,
-      messages jsonb NOT NULL
+      messages jsonb NOT NULL,
+      missions jsonb NOT NULL DEFAULT '[]'::jsonb,
+      artifacts jsonb NOT NULL DEFAULT '[]'::jsonb
     );
   `);
+  await pool.query("ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS missions jsonb NOT NULL DEFAULT '[]'::jsonb");
+  await pool.query("ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS artifacts jsonb NOT NULL DEFAULT '[]'::jsonb");
   await pool.query(`
     CREATE TABLE IF NOT EXISTS sessions (
       token text PRIMARY KEY,
@@ -118,8 +158,8 @@ async function initDb() {
 
   for (const workspace of seedWorkspaces) {
     await pool.query(`
-      INSERT INTO workspaces (id, name, title, mode, model, quick_actions, tasks, messages)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO workspaces (id, name, title, mode, model, quick_actions, tasks, messages, missions, artifacts)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       ON CONFLICT (id) DO NOTHING
     `, [
       workspace.id,
@@ -129,7 +169,14 @@ async function initDb() {
       workspace.model,
       JSON.stringify(workspace.quickActions),
       JSON.stringify(workspace.tasks),
-      JSON.stringify(workspace.messages)
+      JSON.stringify(workspace.messages),
+      JSON.stringify(workspace.missions),
+      JSON.stringify(workspace.artifacts)
+    ]);
+    await pool.query('UPDATE workspaces SET missions = $1, artifacts = $2 WHERE id = $3 AND jsonb_array_length(missions) = 0 AND jsonb_array_length(artifacts) = 0', [
+      JSON.stringify(workspace.missions),
+      JSON.stringify(workspace.artifacts),
+      workspace.id
     ]);
   }
 
@@ -251,12 +298,14 @@ function rowToWorkspace(row) {
     model: row.model,
     quickActions: row.quick_actions || [],
     tasks: row.tasks || [],
-    messages: row.messages || []
+    messages: row.messages || [],
+    missions: row.missions || [],
+    artifacts: row.artifacts || []
   };
 }
 
 async function saveWorkspace(workspace) {
-  await pool.query('UPDATE workspaces SET name = $1, title = $2, mode = $3, model = $4, quick_actions = $5, tasks = $6, messages = $7 WHERE id = $8', [
+  await pool.query('UPDATE workspaces SET name = $1, title = $2, mode = $3, model = $4, quick_actions = $5, tasks = $6, messages = $7, missions = $8, artifacts = $9 WHERE id = $10', [
     workspace.name,
     workspace.title,
     workspace.mode,
@@ -264,6 +313,8 @@ async function saveWorkspace(workspace) {
     JSON.stringify(workspace.quickActions),
     JSON.stringify(workspace.tasks),
     JSON.stringify(workspace.messages),
+    JSON.stringify(workspace.missions || []),
+    JSON.stringify(workspace.artifacts || []),
     workspace.id
   ]);
 }
@@ -367,8 +418,45 @@ function addMessage(workspace, role, text, author) {
   workspace.messages = workspace.messages.slice(-50);
 }
 
+function buildMissionFromGoal(goal) {
+  const safeGoal = String(goal || '').trim() || 'Новая миссия агента';
+  const artifactId = crypto.randomUUID();
+  return {
+    mission: {
+      id: crypto.randomUUID(),
+      goal: safeGoal,
+      status: 'running',
+      progress: 75,
+      steps: [
+        { title: 'Понять цель и ожидаемый результат', status: 'done' },
+        { title: 'Разложить работу на шаги', status: 'done' },
+        { title: 'Собрать рабочий черновик', status: 'running' },
+        { title: 'Передать результат сотруднику', status: 'todo' }
+      ],
+      artifactId: artifactId,
+      createdAt: now()
+    },
+    artifact: {
+      id: artifactId,
+      title: 'Рабочий результат: ' + safeGoal.slice(0, 48),
+      type: 'mission',
+      summary: 'Черновик результата, который агент подготовил по заданной цели.',
+      content: 'Цель: ' + safeGoal + '\n\nПлан:\n1. Уточнить контекст.\n2. Выполнить проверку или подготовку.\n3. Собрать результат.\n4. Вернуть сотруднику готовый артефакт.'
+    }
+  };
+}
+
+function startMission(workspace, goal) {
+  const result = buildMissionFromGoal(goal);
+  workspace.missions = [result.mission, ...(workspace.missions || [])].slice(0, 8);
+  workspace.artifacts = [result.artifact, ...(workspace.artifacts || [])].slice(0, 8);
+  addTask(workspace, result.mission.goal, 'Создано как агентская миссия с планом и артефактом.');
+  return result;
+}
+
 function extractIntent(message) {
   const lower = String(message).toLowerCase();
+  if (/мисси|mission|план|исслед|проанализ|подготов|автоном|manus/.test(lower)) return 'mission';
   if (/задач|task|сделай/.test(lower)) return 'task';
   if (/прайс|цена|документ|найди|поиск/.test(lower)) return 'search';
   if (/статус|блок|риск/.test(lower)) return 'status';
@@ -383,6 +471,8 @@ function buildOpenClawPrompt(workspace, agentFiles, userText) {
     agentFiles.workflow ? 'Workflow:\n' + agentFiles.workflow : '',
     agentFiles.memory ? 'Память:\n' + agentFiles.memory : '',
     'Текущий режим: ' + workspace.mode + '.',
+    'Активные миссии: ' + JSON.stringify((workspace.missions || []).slice(0, 3)),
+    'Последние артефакты: ' + JSON.stringify((workspace.artifacts || []).slice(0, 3)),
     'Контекст изолирован: видишь только одного сотрудника и его workspace.',
     'Отвечай по-русски, коротко и по делу.',
     'Сообщение пользователя: ' + userText
@@ -403,6 +493,12 @@ function generateWorkflowReply(workspace, message, agentFiles) {
     if (workspace.mode === 'execute') return 'Готово: задача «' + title + '» добавлена. ' + agentTone;
     if (workspace.mode === 'approve') return 'Могу добавить задачу «' + title + '». Подтверди, если ок. ' + agentTone;
     return 'Могу оформить задачу «' + title + '» и добавить её в твой workflow. ' + agentTone;
+  }
+
+  if (intent === 'mission') {
+    const goal = String(message).replace(/создай|запусти|миссию|mission|план|агента|manus/gi, '').trim() || message;
+    const result = startMission(workspace, goal);
+    return 'Запустил миссию: «' + result.mission.goal + '». Составил план, начал выполнение и положил черновик результата в Artifacts. ' + agentTone;
   }
 
   if (intent === 'search') {
@@ -507,11 +603,32 @@ async function answerWorkspaceMessage(workspace, userText, agentFiles) {
 
 function tryWorkflowAction(workspace, text, reply) {
   const lower = String(text).toLowerCase();
+  if (/мисси|mission|план|исслед|проанализ|подготов|manus/.test(lower)) return;
   if (!(/создай|сделай|задач|task/.test(lower))) return;
   if (!/добавлен|готово|могу/.test(String(reply).toLowerCase())) return;
   const title = String(text).replace(/создай|сделай|задачу|task/gi, '').trim() || 'Новая задача';
   if (!workspace.tasks.some((task) => task.title.toLowerCase() === title.toLowerCase())) {
     addTask(workspace, title, 'Создано из чата OpenClaw workflow.');
+  }
+}
+
+async function handleMission(req, res) {
+  const ctx = await getAuthenticatedContext(req, res);
+  if (!ctx) return;
+  try {
+    const body = await readBody(req);
+    const goal = String(body.goal || '').trim();
+    if (!goal) {
+      sendJson(res, 400, { error: 'empty_goal' });
+      return;
+    }
+    const result = startMission(ctx.workspace, goal);
+    addMessage(ctx.workspace, 'agent', 'Запустил миссию: «' + result.mission.goal + '». План и артефакт уже доступны справа.', 'Агент ' + ctx.workspace.name);
+    await saveWorkspace(ctx.workspace);
+    sendJson(res, 200, { workspace: ctx.workspace, mission: result.mission, artifact: result.artifact });
+  } catch (error) {
+    console.error('Failed to handle /api/missions:', error);
+    sendJson(res, 500, { error: 'mission_failed' });
   }
 }
 
@@ -668,6 +785,7 @@ async function main() {
     if (pathname === '/api/login' && req.method === 'POST') { asyncHandler(req, res, () => handleLogin(req, res)); return; }
     if (pathname === '/api/logout' && req.method === 'POST') { asyncHandler(req, res, () => handleLogout(req, res)); return; }
     if (pathname === '/api/message' && req.method === 'POST') { asyncHandler(req, res, () => handleMessage(req, res)); return; }
+    if (pathname === '/api/missions' && req.method === 'POST') { asyncHandler(req, res, () => handleMission(req, res)); return; }
     if (pathname === '/api/workspace/mode' && req.method === 'POST') { asyncHandler(req, res, () => handleMode(req, res)); return; }
     if (pathname === '/api/tasks' && req.method === 'POST') { asyncHandler(req, res, () => handleTasks(req, res)); return; }
     const taskMatch = pathname.match(/^\/api\/tasks\/([^/]+)$/);

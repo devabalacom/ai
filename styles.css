@@ -121,6 +121,8 @@ button, input, select { font: inherit; }
 .credential-grid div,
 .workflow-card,
 .task-item,
+.mission-item,
+.artifact-item,
 .onboarding-step {
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.035);
@@ -479,16 +481,16 @@ button, input, select { font: inherit; }
   font-weight: 800;
 }
 
-.task-list, .onboarding-list {
+.task-list, .mission-list, .artifact-list, .onboarding-list {
   display: grid;
   gap: 10px;
 }
 
-.task-item {
+.task-item, .mission-item, .artifact-item {
   padding: 14px;
 }
 
-.task-top {
+.task-top, .mission-top {
   display: flex;
   justify-content: space-between;
   gap: 12px;
@@ -512,6 +514,83 @@ button, input, select { font: inherit; }
 .badge.waiting { background: rgba(245, 158, 11, 0.14); color: #fbbf24; }
 .badge.done { background: rgba(34, 197, 94, 0.14); color: #86efac; }
 .badge.blocked { background: rgba(248, 113, 113, 0.14); color: #fca5a5; }
+.badge.running { background: rgba(245, 158, 11, 0.14); color: #fbbf24; }
+
+.progress-track {
+  height: 8px;
+  margin: 12px 0;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: rgba(148, 163, 184, 0.14);
+}
+
+.progress-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+}
+
+.mission-steps {
+  display: grid;
+  gap: 8px;
+}
+
+.mission-step {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+
+.mission-step span {
+  width: 10px;
+  height: 10px;
+  margin-top: 5px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.44);
+}
+
+.mission-step.done span { background: var(--success); }
+.mission-step.running span { background: var(--accent-2); }
+
+.mission-step p {
+  margin: 0;
+  color: var(--soft);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.artifact-meta {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.artifact-item strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.artifact-item p {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.artifact-item pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--soft);
+  font-family: "Manrope", system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+}
 
 .onboarding-step {
   display: grid;
@@ -582,7 +661,7 @@ button, input, select { font: inherit; }
   }
 
   .nav-list {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
 

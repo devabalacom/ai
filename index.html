@@ -66,7 +66,9 @@
           </div>
           <nav class="nav-list" aria-label="Разделы">
             <a class="active" href="#workspace-grid">Agent</a>
+            <a href="#mission-list">Missions</a>
             <a href="#task-list">Tasks</a>
+            <a href="#artifact-list">Artifacts</a>
             <a href="#onboarding-list">Onboarding</a>
           </nav>
           <button class="chip logout-wide" id="logout-btn">Выйти</button>
@@ -119,10 +121,31 @@
               <div class="panel-head slim">
                 <div>
                   <div class="panel-title">Agent Control</div>
-                  <div class="panel-subtitle">Режим, история и состояние личного агента</div>
+                  <div class="panel-subtitle">Режим, миссии, задачи и артефакты агента</div>
                 </div>
               </div>
               <div class="workflow-grid" id="workflow-grid"></div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head slim">
+                <div>
+                  <div class="panel-title">Missions</div>
+                  <div class="panel-subtitle">Autonomous work: цель, план, прогресс, результат</div>
+                </div>
+                <button class="chip" id="new-mission-btn">+ mission</button>
+              </div>
+              <div class="mission-list" id="mission-list"></div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head slim">
+                <div>
+                  <div class="panel-title">Artifacts</div>
+                  <div class="panel-subtitle">Черновики и результаты, которые подготовил агент</div>
+                </div>
+              </div>
+              <div class="artifact-list" id="artifact-list"></div>
             </section>
 
             <section class="panel onboarding-panel">
