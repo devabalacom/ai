@@ -1,6 +1,7 @@
 const STORAGE_KEY = 'agenthub-client-state-v2';
 const API_BASE = (window.AGENTHUB_API_BASE || '').replace(/\/$/, '');
 const TIME_ZONE = 'Europe/Moscow';
+const DEMO_MODE = new URLSearchParams(window.location.search).get('demo') === '1';
 
 const demoUsers = [
   { id: 'support', name: 'Алина', title: 'Support operations', password: 'Support#2026', agentId: 'support-agent' },
@@ -12,9 +13,9 @@ const fallbackWorkspaces = {
     id: 'support-agent',
     name: 'Алина',
     title: 'Личный рабочий агент',
-    mode: 'answer',
+    mode: 'approve',
     model: 'OpenClaw workflow',
-    quickActions: ['Запусти миссию: разобрать тикет', 'Подготовь план ответа клиенту', 'Исследуй проблему доступа', 'Покажи статус миссий'],
+    quickActions: ['Запусти поручение: разобрать тикет', 'Подготовь план ответа клиенту', 'Исследуй проблему доступа', 'Покажи статус поручений'],
     tasks: [
       { id: 't1', title: 'Ответить на тикет по доступам', details: 'Подготовить короткий черновик ответа', status: 'todo' },
       { id: 't2', title: 'Собрать FAQ', details: 'Вытащить частые вопросы из истории', status: 'waiting' }
@@ -29,15 +30,15 @@ const fallbackWorkspaces = {
     id: 'sales-agent',
     name: 'Дамир',
     title: 'Личный рабочий агент',
-    mode: 'suggest',
+    mode: 'approve',
     model: 'OpenClaw workflow',
-    quickActions: ['Запусти миссию: подготовить follow-up', 'Проанализируй прайс и сроки', 'Подготовь коммерческий черновик', 'Покажи статус миссий'],
+    quickActions: ['Запусти поручение: подготовить follow-up', 'Проанализируй прайс и сроки', 'Подготовь коммерческий черновик', 'Покажи статус поручений'],
     tasks: [
       { id: 't3', title: 'Ответить клиенту по срокам', details: 'Сначала проверить подтвержденную дату', status: 'todo' },
       { id: 't4', title: 'Подготовить follow-up', details: 'Сделать короткий и уверенный текст', status: 'done' }
     ],
     messages: [
-      { id: 'm4', role: 'agent', author: 'Агент Дамира', time: '08:50', text: 'Я веду твой личный workspace. Здесь только твой чат, задачи и история.' },
+      { id: 'm4', role: 'agent', author: 'Агент Дамира', time: '08:50', text: 'Я веду твое личное пространство. Здесь только твой чат, задачи и история.' },
       { id: 'm5', role: 'user', author: 'Дамир', time: '08:52', text: 'Сделай короткий ответ по прайсу и срокам.' },
       { id: 'm6', role: 'agent', author: 'Агент Дамира', time: '08:52', text: 'Ок, сначала проверяю подтвержденные сроки, потом дам черновик.' }
     ]
@@ -48,8 +49,29 @@ const onboardingSteps = [
   { title: 'Войти', text: 'Выбери свой рабочий аккаунт и введи пароль сотрудника.' },
   { title: 'Дать цель', text: 'Запусти Mission: опиши результат, который агент должен подготовить автономно.' },
   { title: 'Следить за планом', text: 'Агент разложит работу на шаги, покажет прогресс и текущий статус выполнения.' },
-  { title: 'Забрать артефакт', text: 'Готовые черновики, ответы и рабочие результаты появляются в Artifacts.' }
+  { title: 'Забрать результат', text: 'Готовые черновики, ответы и рабочие результаты появляются в “Готовых материалах”.' }
 ];
+
+const modeCopy = {
+  answer: { label: 'Отвечает', description: 'Помощник только отвечает на вопросы.' },
+  suggest: { label: 'Предлагает', description: 'Помощник предлагает текст или план, но ничего не меняет.' },
+  approve: { label: 'Ждет подтверждения', description: 'Перед действием помощник попросит ваше “да”.' },
+  execute: { label: 'Выполняет', description: 'Помощник сам выполняет безопасные действия.' }
+};
+
+const statusCopy = {
+  todo: 'Нужно сделать',
+  waiting: 'Ждет ответа',
+  done: 'Готово',
+  blocked: 'Есть проблема',
+  running: 'В работе'
+};
+
+const artifactTypeCopy = {
+  reply: 'Ответ клиенту',
+  draft: 'Черновик',
+  mission: 'Результат поручения'
+};
 
 const state = {
   apiAvailable: false,
@@ -59,7 +81,8 @@ const state = {
   localWorkspaces: structuredClone(fallbackWorkspaces),
   pendingTask: false,
   pendingMission: false,
-  sendingMessage: false
+  sendingMessage: false,
+  currentView: 'chat'
 };
 
 const el = {
@@ -74,11 +97,11 @@ const el = {
   profileMeta: document.getElementById('profile-meta'),
   workspaceTitle: document.getElementById('workspace-title'),
   workspaceHint: document.getElementById('workspace-hint'),
-  modelLabel: document.getElementById('model-label'),
-  modeLabel: document.getElementById('mode-label'),
-  taskCount: document.getElementById('task-count'),
+  topbarSummary: document.getElementById('topbar-summary'),
+  todaySummary: document.getElementById('today-summary'),
   chatSubtitle: document.getElementById('chat-subtitle'),
   modeSwitch: document.getElementById('mode-switch'),
+  modeHelp: document.getElementById('mode-help'),
   quickActions: document.getElementById('quick-actions'),
   messages: document.getElementById('messages'),
   composer: document.getElementById('composer'),
@@ -91,10 +114,15 @@ const el = {
   onboardingList: document.getElementById('onboarding-list'),
   newTaskBtn: document.getElementById('new-task-btn'),
   newMissionBtn: document.getElementById('new-mission-btn'),
+  navLinks: document.querySelectorAll('[data-view]'),
+  viewPanels: document.querySelectorAll('[data-panel]'),
+  todayPanel: document.getElementById('today-panel'),
   promptModal: document.getElementById('prompt-modal'),
   promptTitle: document.getElementById('prompt-title'),
   promptLabel: document.getElementById('prompt-label'),
-  promptInput: document.getElementById('prompt-input')
+  promptInput: document.getElementById('prompt-input'),
+  promptHelp: document.getElementById('prompt-help'),
+  promptSubmit: document.getElementById('prompt-submit')
 };
 
 function persistLocal() {
@@ -189,12 +217,34 @@ function scrollMessagesToBottom() {
 
 function statusBadge(status) {
   const safeStatus = escapeHtml(status);
-  return `<span class="badge ${safeStatus}">${safeStatus}</span>`;
+  return `<span class="badge ${safeStatus}">${escapeHtml(statusCopy[status] || status)}</span>`;
 }
 
 function missionProgress(mission) {
   const value = Number(mission.progress || 0);
   return Math.max(0, Math.min(100, value));
+}
+
+function modeLabel(mode) {
+  return modeCopy[mode]?.label || mode;
+}
+
+function modeDescription(mode) {
+  return modeCopy[mode]?.description || '';
+}
+
+function artifactTypeLabel(type) {
+  return artifactTypeCopy[type] || type || 'Материал';
+}
+
+function renderViewState() {
+  el.navLinks.forEach((link) => {
+    link.classList.toggle('active', link.dataset.view === state.currentView);
+  });
+  el.viewPanels.forEach((panel) => {
+    panel.classList.toggle('hidden', panel.dataset.panel !== state.currentView);
+  });
+  el.todayPanel.classList.toggle('hidden', state.currentView !== 'chat');
 }
 
 function renderAuthState() {
@@ -229,15 +279,22 @@ function renderWorkspace() {
   el.profileName.textContent = state.currentUser.name;
   el.profileMeta.textContent = `${state.currentUser.title} · личный агент компании`;
   el.workspaceTitle.textContent = `${workspace.name} · ${workspace.title}`;
-  el.workspaceHint.textContent = 'Панель управления личным агентом: чат, режимы, задачи и рабочий контекст.';
-  el.modelLabel.textContent = workspace.model;
-  el.modeLabel.textContent = workspace.mode;
-  el.taskCount.textContent = String(workspace.tasks.filter((task) => task.status !== 'done').length);
-  el.chatSubtitle.textContent = 'Личный чат сотрудника и его агента.';
+  el.workspaceHint.textContent = 'Личный чат, поручения, задачи и готовые материалы.';
+  const openTasks = workspace.tasks.filter((task) => task.status !== 'done').length;
+  const runningMissions = (workspace.missions || []).filter((mission) => mission.status === 'running').length;
+  const artifactCount = (workspace.artifacts || []).length;
+  el.topbarSummary.textContent = `${workspace.model} · ${modeLabel(workspace.mode)} · ${openTasks} открытые задачи`;
+  el.chatSubtitle.textContent = 'Напишите помощнику или запустите поручение.';
+  el.modeHelp.textContent = modeDescription(workspace.mode);
+  el.todaySummary.innerHTML = `
+    <div><strong>${openTasks}</strong><span>открытые задачи</span></div>
+    <div><strong>${runningMissions}</strong><span>поручения в работе</span></div>
+    <div><strong>${artifactCount}</strong><span>готовые материалы</span></div>
+  `;
 
   const modes = ['answer', 'suggest', 'approve', 'execute'];
   el.modeSwitch.innerHTML = modes.map((mode) => `
-    <button class="mode-chip ${mode === workspace.mode ? 'active' : ''}" data-mode="${mode}" type="button">${mode}</button>
+    <button class="mode-chip ${mode === workspace.mode ? 'active' : ''}" data-mode="${mode}" type="button">${escapeHtml(modeLabel(mode))}</button>
   `).join('');
 
   el.quickActions.innerHTML = workspace.quickActions.map((item) => `
@@ -265,9 +322,9 @@ function renderWorkspace() {
         ${statusBadge(task.status)}
       </div>
       <div class="task-actions">
-        <button type="button" data-task-status="todo" data-task-id="${escapeHtml(task.id)}">Todo</button>
-        <button type="button" data-task-status="waiting" data-task-id="${escapeHtml(task.id)}">Waiting</button>
-        <button type="button" data-task-status="done" data-task-id="${escapeHtml(task.id)}">Done</button>
+        <button type="button" data-task-status="todo" data-task-id="${escapeHtml(task.id)}">${statusCopy.todo}</button>
+        <button type="button" data-task-status="waiting" data-task-id="${escapeHtml(task.id)}">${statusCopy.waiting}</button>
+        <button type="button" data-task-status="done" data-task-id="${escapeHtml(task.id)}">${statusCopy.done}</button>
       </div>
     </div>
   `).join('');
@@ -277,7 +334,7 @@ function renderWorkspace() {
       <div class="mission-top">
         <div>
           <div class="task-title">${escapeHtml(mission.goal)}</div>
-          <div class="panel-subtitle">Started ${escapeHtml(mission.createdAt || 'now')} · ${escapeHtml(mission.status)}</div>
+          <div class="panel-subtitle">Начато в ${escapeHtml(mission.createdAt || 'сейчас')} · ${escapeHtml(statusCopy[mission.status] || mission.status)}</div>
         </div>
         ${statusBadge(mission.status)}
       </div>
@@ -295,18 +352,25 @@ function renderWorkspace() {
 
   el.artifactList.innerHTML = (workspace.artifacts || []).map((artifact) => `
     <article class="artifact-item">
-      <div class="artifact-meta"><span>${escapeHtml(artifact.type || 'artifact')}</span></div>
+      <div class="artifact-meta"><span>${escapeHtml(artifactTypeLabel(artifact.type))}</span></div>
       <strong>${escapeHtml(artifact.title)}</strong>
       <p>${escapeHtml(artifact.summary)}</p>
-      <pre>${escapeHtml(artifact.content)}</pre>
+      <details>
+        <summary>Открыть полностью</summary>
+        <pre>${escapeHtml(artifact.content)}</pre>
+      </details>
+      <div class="artifact-actions">
+        <button type="button" data-artifact-copy="${escapeHtml(artifact.id)}">Скопировать</button>
+        <button type="button" data-artifact-task="${escapeHtml(artifact.id)}">Создать задачу</button>
+      </div>
     </article>
   `).join('');
 
   const workflow = [
-    { label: 'Mode', value: workspace.mode },
-    { label: 'Missions', value: String((workspace.missions || []).length) },
-    { label: 'Open tasks', value: String(workspace.tasks.filter((task) => task.status !== 'done').length) },
-    { label: 'Artifacts', value: String((workspace.artifacts || []).length) }
+    { label: 'Как работает помощник', value: modeLabel(workspace.mode) },
+    { label: 'Поручения', value: String((workspace.missions || []).length) },
+    { label: 'Открытые задачи', value: String(openTasks) },
+    { label: 'Готовые материалы', value: String(artifactCount) }
   ];
 
   el.workflowGrid.innerHTML = workflow.map((item) => `
@@ -325,6 +389,7 @@ function renderWorkspace() {
       </div>
     </div>
   `).join('');
+  renderViewState();
 }
 
 function render() {
@@ -339,6 +404,12 @@ function render() {
   persistLocal();
 }
 
+function configureDemoMode() {
+  document.querySelectorAll('.demo-only').forEach((node) => {
+    node.classList.toggle('hidden', !DEMO_MODE);
+  });
+}
+
 function addLocalMessage(workspace, role, text, author) {
   workspace.messages.push({ id: newId(), role, author, time: now(), text });
   workspace.messages = workspace.messages.slice(-50);
@@ -350,7 +421,7 @@ function addLocalTask(workspace, title, details) {
 }
 
 function buildLocalMission(goal) {
-  const safeGoal = String(goal || '').trim() || 'Новая миссия агента';
+  const safeGoal = String(goal || '').trim() || 'Новое поручение помощнику';
   const artifactId = newId();
   return {
     mission: {
@@ -381,17 +452,17 @@ function startLocalMission(workspace, goal) {
   const result = buildLocalMission(goal);
   workspace.missions = [result.mission, ...(workspace.missions || [])].slice(0, 8);
   workspace.artifacts = [result.artifact, ...(workspace.artifacts || [])].slice(0, 8);
-  addLocalTask(workspace, result.mission.goal, 'Создано как агентская миссия с планом и артефактом.');
+  addLocalTask(workspace, result.mission.goal, 'Создано как поручение помощнику с планом и готовым материалом.');
   return result;
 }
 
 function generateReply(workspace, message) {
   const lower = message.toLowerCase();
 
-  if (/мисси|mission|план|исслед|проанализ|подготов|автоном|manus/.test(lower)) {
-    const goal = message.replace(/создай|запусти|миссию|mission|план|агента|manus/gi, '').trim() || message;
+  if (/поруч|мисси|mission|план|исслед|проанализ|подготов|автоном|manus/.test(lower)) {
+    const goal = message.replace(/создай|запусти|поручение|поручений|миссию|mission|план|агента|manus/gi, '').trim() || message;
     const result = startLocalMission(workspace, goal);
-    return `Запустил миссию: «${result.mission.goal}». Составил план, начал выполнение и положил черновик результата в Artifacts.`;
+    return `Запустил поручение: «${result.mission.goal}». Составил план, начал выполнение и положил черновик результата в “Готовые материалы”.`;
   }
 
   if (/задач|task|сделай/.test(lower)) {
@@ -421,7 +492,7 @@ function generateReply(workspace, message) {
   }
 
   if (workspace.mode === 'execute') {
-    return 'Выполняю безопасный сценарий и фиксирую результат в текущем workspace.';
+    return 'Выполняю безопасный сценарий и фиксирую результат в личном пространстве.';
   }
 
   return 'Принял. Могу отвечать, искать, создавать задачи и вести твой личный workflow.';
@@ -588,11 +659,25 @@ async function createMission(goal) {
   } else {
     const workspace = currentWorkspace();
     const result = startLocalMission(workspace, safeGoal);
-    addLocalMessage(workspace, 'agent', `Запустил миссию: «${result.mission.goal}». План и артефакт уже доступны справа.`, 'Агент ' + workspace.name);
+    addLocalMessage(workspace, 'agent', `Запустил поручение: «${result.mission.goal}». План и материал уже доступны справа.`, 'Агент ' + workspace.name);
     state.workspace = workspace;
     persistLocal();
   }
   render();
+}
+
+function findArtifact(workspace, artifactId) {
+  return (workspace.artifacts || []).find((artifact) => artifact.id === artifactId) || null;
+}
+
+async function copyArtifact(artifact) {
+  if (!artifact) return;
+  const text = artifact.content || artifact.summary || artifact.title || '';
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  window.prompt('Скопируйте текст', text);
 }
 
 async function setTaskStatus(taskId, status) {
@@ -626,7 +711,7 @@ function bindEvents() {
       await loginUser(String(el.userSelect.value || '').trim(), el.password.value);
       render();
     } catch {
-      el.password.setCustomValidity('Неверный пароль сотрудника');
+      el.password.setCustomValidity('Не получилось войти. Проверьте пользователя и пароль.');
       el.password.reportValidity();
     }
   });
@@ -639,6 +724,14 @@ function bindEvents() {
 
   el.logoutBtn.addEventListener('click', () => {
     logoutUser();
+  });
+
+  el.navLinks.forEach((link) => {
+    link.addEventListener('click', (event) => {
+      event.preventDefault();
+      state.currentView = link.dataset.view || 'chat';
+      renderViewState();
+    });
   });
 
   el.modeSwitch.addEventListener('click', async (event) => {
@@ -682,18 +775,42 @@ function bindEvents() {
     await setTaskStatus(button.dataset.taskId, button.dataset.taskStatus);
   });
 
+  el.artifactList.addEventListener('click', async (event) => {
+    const copyButton = event.target.closest('[data-artifact-copy]');
+    const taskButton = event.target.closest('[data-artifact-task]');
+    const workspace = currentWorkspace();
+    if (!workspace) return;
+    if (copyButton) {
+      await copyArtifact(findArtifact(workspace, copyButton.dataset.artifactCopy));
+      return;
+    }
+    if (taskButton) {
+      const artifact = findArtifact(workspace, taskButton.dataset.artifactTask);
+      if (!artifact) return;
+      await createTask('Доработать материал: ' + artifact.title);
+    }
+  });
+
   el.newTaskBtn.addEventListener('click', () => {
     el.promptTitle.textContent = 'Новая задача';
-    el.promptLabel.textContent = 'Название';
+    el.promptLabel.textContent = 'Что нужно не забыть?';
+    el.promptInput.placeholder = 'Например: ответить клиенту по доступам';
     el.promptInput.value = '';
+    el.promptHelp.textContent = '';
+    el.promptSubmit.textContent = 'Добавить задачу';
     state.pendingTask = true;
+    state.pendingMission = false;
     el.promptModal.showModal();
   });
 
   el.newMissionBtn.addEventListener('click', () => {
-    el.promptTitle.textContent = 'Новая миссия агента';
-    el.promptLabel.textContent = 'Цель';
+    el.promptTitle.textContent = 'Новое поручение помощнику';
+    el.promptLabel.textContent = 'Какой результат нужно подготовить?';
+    el.promptInput.placeholder = 'Например: разобрать тикет и подготовить черновик ответа';
     el.promptInput.value = '';
+    el.promptHelp.textContent = 'Помощник сам составит план и положит результат в “Готовые материалы”.';
+    el.promptSubmit.textContent = 'Запустить поручение';
+    state.pendingTask = false;
     state.pendingMission = true;
     el.promptModal.showModal();
   });
@@ -725,6 +842,7 @@ function bindEvents() {
 async function bootstrap() {
   await detectBackend();
   await loadUsers();
+  configureDemoMode();
   bindEvents();
   await loadSession();
   renderUserSelect();

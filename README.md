@@ -1,18 +1,18 @@
-# AgentHub MVP
+# AgentHub
 
-Employee-only AI workspace with a single VPS deployment.
+Employee-only AI assistant workspace with a single VPS deployment.
 
 Included:
-- 2 demo accounts
+- 2 employee accounts
 - separate workspace per user
-- own OpenClaw workflow agent, chat, tasks, workflow
+- own OpenClaw workflow assistant, chat, tasks, поручения, and готовые материалы
 - backend API with Postgres
 - frontend served from the same VPS through nginx
 - per-agent files live in agents/<user>/
 
-Demo credentials:
-- Сергей / demo
-- Марина / demo
+Employee credentials:
+- support / Support#2026
+- sales / Sales#2026
 
 Deployment model:
 - web container: nginx + static frontend
@@ -23,7 +23,7 @@ Deployment model:
 Workflow layer:
 - The backend now uses OpenClaw workflow files per user.
 - If OPENCLAW_GATEWAY_URL is set, the backend can call an OpenClaw Gateway.
-- If no gateway is configured, the backend falls back to local workflow logic so chat still works.
+- If no gateway is configured, the backend falls back to local workflow logic so chat and поручения still work.
 
 Optional environment variables:
 - WORKFLOW_PROVIDER (default: openclaw)
@@ -42,6 +42,7 @@ API:
 - POST /api/login
 - POST /api/logout
 - POST /api/message
+- POST /api/missions
 - POST /api/workspace/mode
 - POST /api/tasks
 - PATCH /api/tasks/:id

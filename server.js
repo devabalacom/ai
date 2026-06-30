@@ -46,11 +46,11 @@ function seedWorkspace(userName, mode, quickActions, tasks, messages, missions, 
 }
 
 const seedWorkspaces = [
-  seedWorkspace('Алина', 'answer', [
-    'Запусти миссию: разобрать тикет',
+  seedWorkspace('Алина', 'approve', [
+    'Запусти поручение: разобрать тикет',
     'Подготовь план ответа клиенту',
     'Исследуй проблему доступа',
-    'Покажи статус миссий'
+    'Покажи статус поручений'
   ], [
     { id: 't1', title: 'Ответить на тикет по доступам', details: 'Подготовить короткий черновик ответа', status: 'todo' },
     { id: 't2', title: 'Собрать FAQ', details: 'Вытащить частые вопросы из истории', status: 'waiting' }
@@ -76,16 +76,16 @@ const seedWorkspaces = [
   ], [
     { id: 'artifact-support-1', title: 'Черновик ответа клиенту', type: 'reply', summary: 'Короткий ответ по доступам с понятным следующим шагом.', content: 'Здравствуйте. Проверили доступы: учетная запись активна. Попробуйте войти заново, если ошибка повторится, пришлите скриншот и время попытки входа.' }
   ]),
-  seedWorkspace('Дамир', 'suggest', [
-    'Запусти миссию: подготовить follow-up',
+  seedWorkspace('Дамир', 'approve', [
+    'Запусти поручение: подготовить follow-up',
     'Проанализируй прайс и сроки',
     'Подготовь коммерческий черновик',
-    'Покажи статус миссий'
+    'Покажи статус поручений'
   ], [
     { id: 't3', title: 'Ответить клиенту по срокам', details: 'Сначала проверить подтвержденную дату', status: 'todo' },
     { id: 't4', title: 'Подготовить follow-up', details: 'Сделать короткий и уверенный текст', status: 'done' }
   ], [
-    { id: 'm4', role: 'agent', author: 'Агент Дамира', time: '08:50', text: 'Я веду твой личный workspace. Здесь только твой чат, задачи и история.' },
+    { id: 'm4', role: 'agent', author: 'Агент Дамира', time: '08:50', text: 'Я веду твое личное пространство. Здесь только твой чат, задачи и история.' },
     { id: 'm5', role: 'user', author: 'Дамир', time: '08:52', text: 'Сделай короткий ответ по прайсу и срокам.' },
     { id: 'm6', role: 'agent', author: 'Агент Дамира', time: '08:52', text: 'Ок, сначала проверяю подтвержденные сроки, потом дам черновик.' }
   ], [
@@ -419,7 +419,7 @@ function addMessage(workspace, role, text, author) {
 }
 
 function buildMissionFromGoal(goal) {
-  const safeGoal = String(goal || '').trim() || 'Новая миссия агента';
+  const safeGoal = String(goal || '').trim() || 'Новое поручение помощнику';
   const artifactId = crypto.randomUUID();
   return {
     mission: {
@@ -450,13 +450,13 @@ function startMission(workspace, goal) {
   const result = buildMissionFromGoal(goal);
   workspace.missions = [result.mission, ...(workspace.missions || [])].slice(0, 8);
   workspace.artifacts = [result.artifact, ...(workspace.artifacts || [])].slice(0, 8);
-  addTask(workspace, result.mission.goal, 'Создано как агентская миссия с планом и артефактом.');
+  addTask(workspace, result.mission.goal, 'Создано как поручение помощнику с планом и готовым материалом.');
   return result;
 }
 
 function extractIntent(message) {
   const lower = String(message).toLowerCase();
-  if (/мисси|mission|план|исслед|проанализ|подготов|автоном|manus/.test(lower)) return 'mission';
+  if (/поруч|мисси|mission|план|исслед|проанализ|подготов|автоном|manus/.test(lower)) return 'mission';
   if (/задач|task|сделай/.test(lower)) return 'task';
   if (/прайс|цена|документ|найди|поиск/.test(lower)) return 'search';
   if (/статус|блок|риск/.test(lower)) return 'status';
@@ -496,9 +496,9 @@ function generateWorkflowReply(workspace, message, agentFiles) {
   }
 
   if (intent === 'mission') {
-    const goal = String(message).replace(/создай|запусти|миссию|mission|план|агента|manus/gi, '').trim() || message;
+    const goal = String(message).replace(/создай|запусти|поручение|поручений|миссию|mission|план|агента|manus/gi, '').trim() || message;
     const result = startMission(workspace, goal);
-    return 'Запустил миссию: «' + result.mission.goal + '». Составил план, начал выполнение и положил черновик результата в Artifacts. ' + agentTone;
+    return 'Запустил поручение: «' + result.mission.goal + '». Составил план, начал выполнение и положил черновик результата в “Готовые материалы”. ' + agentTone;
   }
 
   if (intent === 'search') {
@@ -519,10 +519,10 @@ function generateWorkflowReply(workspace, message, agentFiles) {
   }
 
   if (workspace.mode === 'execute') {
-    return 'Выполняю безопасный сценарий и фиксирую результат в текущем workspace.';
+    return 'Выполняю безопасный сценарий и фиксирую результат в личном пространстве.';
   }
 
-  return agentFiles.workflow || 'Принял. Веду личный workspace сотрудника: чат, задачи и workflow.';
+  return agentFiles.workflow || 'Принял. Веду личное пространство сотрудника: чат, задачи и workflow.';
 }
 
 function toOpenAiMessages(workspace, userText, agentFiles) {
@@ -603,7 +603,7 @@ async function answerWorkspaceMessage(workspace, userText, agentFiles) {
 
 function tryWorkflowAction(workspace, text, reply) {
   const lower = String(text).toLowerCase();
-  if (/мисси|mission|план|исслед|проанализ|подготов|manus/.test(lower)) return;
+  if (/поруч|мисси|mission|план|исслед|проанализ|подготов|manus/.test(lower)) return;
   if (!(/создай|сделай|задач|task/.test(lower))) return;
   if (!/добавлен|готово|могу/.test(String(reply).toLowerCase())) return;
   const title = String(text).replace(/создай|сделай|задачу|task/gi, '').trim() || 'Новая задача';
@@ -623,7 +623,7 @@ async function handleMission(req, res) {
       return;
     }
     const result = startMission(ctx.workspace, goal);
-    addMessage(ctx.workspace, 'agent', 'Запустил миссию: «' + result.mission.goal + '». План и артефакт уже доступны справа.', 'Агент ' + ctx.workspace.name);
+    addMessage(ctx.workspace, 'agent', 'Запустил поручение: «' + result.mission.goal + '». План и материал уже доступны справа.', 'Агент ' + ctx.workspace.name);
     await saveWorkspace(ctx.workspace);
     sendJson(res, 200, { workspace: ctx.workspace, mission: result.mission, artifact: result.artifact });
   } catch (error) {

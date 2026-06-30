@@ -41,12 +41,7 @@ button, input, select { font: inherit; }
   position: fixed;
   inset: 0;
   pointer-events: none;
-  background-image:
-    linear-gradient(rgba(148, 163, 184, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(148, 163, 184, 0.06) 1px, transparent 1px);
-  background-size: 72px 72px;
-  mask-image: linear-gradient(180deg, rgba(0,0,0,0.32), transparent 84%);
-  opacity: 0.45;
+  background: transparent;
 }
 
 .app-shell {
@@ -326,6 +321,13 @@ button, input, select { font: inherit; }
   justify-content: end;
 }
 
+.topbar-summary {
+  color: var(--soft);
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: right;
+}
+
 .stat {
   min-width: 112px;
   padding: 12px 14px;
@@ -397,7 +399,7 @@ button, input, select { font: inherit; }
   gap: 8px;
 }
 
-.mode-chip, .quick-chip, .task-actions button {
+.mode-chip, .quick-chip, .task-actions button, .artifact-actions button {
   padding: 9px 11px;
   border-radius: var(--radius-md);
   border: 1px solid var(--line);
@@ -456,6 +458,33 @@ button, input, select { font: inherit; }
   gap: 16px;
   align-content: start;
   min-height: 0;
+}
+
+.today-summary {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.today-summary div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.today-summary strong {
+  font-size: 24px;
+}
+
+.today-summary span {
+  color: var(--muted);
+}
+
+.today-actions {
+  display: grid;
+  gap: 10px;
 }
 
 .workflow-grid {
@@ -582,12 +611,37 @@ button, input, select { font: inherit; }
   line-height: 1.45;
 }
 
+.artifact-item details {
+  margin-top: 10px;
+}
+
+.artifact-item summary {
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
 .artifact-item pre {
   margin: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   color: var(--soft);
   font-family: "Manrope", system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.artifact-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.modal-help {
+  margin: 12px 0 0;
+  color: var(--muted);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -687,6 +741,10 @@ button, input, select { font: inherit; }
   .topbar {
     align-items: start;
     flex-direction: column;
+  }
+
+  .topbar-summary {
+    text-align: left;
   }
 
   .topbar-stats {
