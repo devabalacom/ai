@@ -153,7 +153,9 @@ button, input, select { font: inherit; }
 .auth-form input,
 .auth-form select,
 .modal-card input,
-.composer input {
+.composer input,
+.agent-settings input,
+.agent-settings textarea {
   border-radius: var(--radius-md);
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.04);
@@ -165,7 +167,9 @@ button, input, select { font: inherit; }
 .auth-form input:focus,
 .auth-form select:focus,
 .modal-card input:focus,
-.composer input:focus {
+.composer input:focus,
+.agent-settings input:focus,
+.agent-settings textarea:focus {
   border-color: rgba(56, 189, 248, 0.64);
   box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.12);
 }
@@ -497,6 +501,30 @@ button, input, select { font: inherit; }
   padding: 14px;
 }
 
+.agent-settings {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.agent-settings label {
+  display: grid;
+  gap: 7px;
+  color: var(--soft);
+  font-size: 13px;
+}
+
+.agent-settings textarea {
+  resize: vertical;
+  min-height: 110px;
+}
+
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .workflow-label {
   color: var(--muted);
   font-size: 12px;
@@ -513,6 +541,25 @@ button, input, select { font: inherit; }
 .task-list, .mission-list, .artifact-list, .onboarding-list {
   display: grid;
   gap: 10px;
+}
+
+.empty-state {
+  padding: 16px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.empty-state strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.empty-state p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .task-item, .mission-item, .artifact-item {

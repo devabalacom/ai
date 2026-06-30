@@ -6,6 +6,7 @@ Included:
 - 2 employee accounts
 - separate workspace per user
 - own OpenClaw workflow assistant, chat, tasks, поручения, and готовые материалы
+- isolated per-user environment: chat history, tasks, поручения, materials, and agent settings do not mix
 - backend API with Postgres
 - frontend served from the same VPS through nginx
 - per-agent files live in agents/<user>/
@@ -43,6 +44,8 @@ API:
 - POST /api/logout
 - POST /api/message
 - POST /api/missions
+- POST /api/agent-settings
+- POST /api/workspace/reset
 - POST /api/workspace/mode
 - POST /api/tasks
 - PATCH /api/tasks/:id

@@ -70,6 +70,7 @@
             <a href="#task-list" data-view="tasks">Задачи</a>
             <a href="#artifact-list" data-view="artifacts">Готовые материалы</a>
             <a href="#onboarding-list" data-view="help">Как начать</a>
+            <a href="#agent-settings" data-view="settings">Настройки</a>
           </nav>
           <button class="chip logout-wide" id="logout-btn">Выйти</button>
         </aside>
@@ -164,6 +165,24 @@
                     </div>
                   </div>
                   <div class="workflow-grid" id="workflow-grid"></div>
+                  <form class="agent-settings" id="agent-settings">
+                    <label>
+                      <span>Имя агента</span>
+                      <input id="agent-name" type="text" placeholder="Например: Помощник Алины">
+                    </label>
+                    <label>
+                      <span>Роль агента</span>
+                      <input id="agent-role" type="text" placeholder="Например: помогает с поддержкой клиентов">
+                    </label>
+                    <label>
+                      <span>Правила работы</span>
+                      <textarea id="agent-instructions" rows="5" placeholder="Например: отвечай коротко, сначала уточняй детали, не выполняй действия без подтверждения"></textarea>
+                    </label>
+                    <div class="settings-actions">
+                      <button class="primary-btn" type="submit">Сохранить агента</button>
+                      <button class="ghost-btn" id="reset-workspace-btn" type="button">Начать с чистого листа</button>
+                    </div>
+                  </form>
                 </section>
               </aside>
             </div>

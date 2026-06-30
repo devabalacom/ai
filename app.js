@@ -16,15 +16,11 @@ const fallbackWorkspaces = {
     mode: 'approve',
     model: 'OpenClaw workflow',
     quickActions: ['Запусти поручение: разобрать тикет', 'Подготовь план ответа клиенту', 'Исследуй проблему доступа', 'Покажи статус поручений'],
-    tasks: [
-      { id: 't1', title: 'Ответить на тикет по доступам', details: 'Подготовить короткий черновик ответа', status: 'todo' },
-      { id: 't2', title: 'Собрать FAQ', details: 'Вытащить частые вопросы из истории', status: 'waiting' }
-    ],
-    messages: [
-      { id: 'm1', role: 'agent', author: 'Агент Алины', time: '09:02', text: 'Я уже создан. Пиши сюда как в Telegram, API тебе не нужен.' },
-      { id: 'm2', role: 'user', author: 'Алина', time: '09:03', text: 'Сделай черновик ответа на тикет по доступам.' },
-      { id: 'm3', role: 'agent', author: 'Агент Алины', time: '09:03', text: 'Готово. Могу сразу превратить это в задачу или отредактировать текст.' }
-    ]
+    tasks: [],
+    messages: [],
+    agentConfig: { name: '', role: '', instructions: '', setupDone: false },
+    missions: [],
+    artifacts: []
   },
   'sales-agent': {
     id: 'sales-agent',
@@ -33,15 +29,11 @@ const fallbackWorkspaces = {
     mode: 'approve',
     model: 'OpenClaw workflow',
     quickActions: ['Запусти поручение: подготовить follow-up', 'Проанализируй прайс и сроки', 'Подготовь коммерческий черновик', 'Покажи статус поручений'],
-    tasks: [
-      { id: 't3', title: 'Ответить клиенту по срокам', details: 'Сначала проверить подтвержденную дату', status: 'todo' },
-      { id: 't4', title: 'Подготовить follow-up', details: 'Сделать короткий и уверенный текст', status: 'done' }
-    ],
-    messages: [
-      { id: 'm4', role: 'agent', author: 'Агент Дамира', time: '08:50', text: 'Я веду твое личное пространство. Здесь только твой чат, задачи и история.' },
-      { id: 'm5', role: 'user', author: 'Дамир', time: '08:52', text: 'Сделай короткий ответ по прайсу и срокам.' },
-      { id: 'm6', role: 'agent', author: 'Агент Дамира', time: '08:52', text: 'Ок, сначала проверяю подтвержденные сроки, потом дам черновик.' }
-    ]
+    tasks: [],
+    messages: [],
+    agentConfig: { name: '', role: '', instructions: '', setupDone: false },
+    missions: [],
+    artifacts: []
   }
 };
 
@@ -114,6 +106,11 @@ const el = {
   onboardingList: document.getElementById('onboarding-list'),
   newTaskBtn: document.getElementById('new-task-btn'),
   newMissionBtn: document.getElementById('new-mission-btn'),
+  agentSettings: document.getElementById('agent-settings'),
+  agentName: document.getElementById('agent-name'),
+  agentRole: document.getElementById('agent-role'),
+  agentInstructions: document.getElementById('agent-instructions'),
+  resetWorkspaceBtn: document.getElementById('reset-workspace-btn'),
   navLinks: document.querySelectorAll('[data-view]'),
   viewPanels: document.querySelectorAll('[data-panel]'),
   todayPanel: document.getElementById('today-panel'),
@@ -237,6 +234,10 @@ function artifactTypeLabel(type) {
   return artifactTypeCopy[type] || type || 'Материал';
 }
 
+function agentDisplayName(workspace) {
+  return workspace?.agentConfig?.name || (workspace ? 'Агент ' + workspace.name : 'Агент');
+}
+
 function renderViewState() {
   el.navLinks.forEach((link) => {
     link.classList.toggle('active', link.dataset.view === state.currentView);
@@ -277,7 +278,8 @@ function renderWorkspace() {
   el.sendBtn.textContent = state.sendingMessage ? 'Отправляем…' : 'Отправить';
 
   el.profileName.textContent = state.currentUser.name;
-  el.profileMeta.textContent = `${state.currentUser.title} · личный агент компании`;
+  const agentConfig = workspace.agentConfig || {};
+  el.profileMeta.textContent = `${state.currentUser.title} · ${agentDisplayName(workspace)}`;
   el.workspaceTitle.textContent = `${workspace.name} · ${workspace.title}`;
   el.workspaceHint.textContent = 'Личный чат, поручения, задачи и готовые материалы.';
   const openTasks = workspace.tasks.filter((task) => task.status !== 'done').length;
@@ -291,6 +293,9 @@ function renderWorkspace() {
     <div><strong>${runningMissions}</strong><span>поручения в работе</span></div>
     <div><strong>${artifactCount}</strong><span>готовые материалы</span></div>
   `;
+  el.agentName.value = agentConfig.name || '';
+  el.agentRole.value = agentConfig.role || '';
+  el.agentInstructions.value = agentConfig.instructions || '';
 
   const modes = ['answer', 'suggest', 'approve', 'execute'];
   el.modeSwitch.innerHTML = modes.map((mode) => `
@@ -301,7 +306,7 @@ function renderWorkspace() {
     <button class="quick-chip" type="button" data-quick="${escapeHtml(item)}">${escapeHtml(item)}</button>
   `).join('');
 
-  el.messages.innerHTML = workspace.messages.map((message) => `
+  el.messages.innerHTML = workspace.messages.length ? workspace.messages.map((message) => `
     <article class="message ${escapeHtml(message.role)}">
       <div class="message-meta">
         <span>${escapeHtml(message.author)}</span>
@@ -309,10 +314,15 @@ function renderWorkspace() {
       </div>
       <div>${escapeHtml(message.text)}</div>
     </article>
-  `).join('');
+  `).join('') : `
+    <div class="empty-state">
+      <strong>Настройте агента и начните с первого запроса</strong>
+      <p>У этого сотрудника отдельная история. Сообщения других людей сюда не попадают.</p>
+    </div>
+  `;
   scrollMessagesToBottom();
 
-  el.taskList.innerHTML = workspace.tasks.map((task) => `
+  el.taskList.innerHTML = workspace.tasks.length ? workspace.tasks.map((task) => `
     <div class="task-item">
       <div class="task-top">
         <div>
@@ -327,9 +337,9 @@ function renderWorkspace() {
         <button type="button" data-task-status="done" data-task-id="${escapeHtml(task.id)}">${statusCopy.done}</button>
       </div>
     </div>
-  `).join('');
+  `).join('') : '<div class="empty-state"><strong>Задач пока нет</strong><p>Создайте первую задачу или запустите поручение помощнику.</p></div>';
 
-  el.missionList.innerHTML = (workspace.missions || []).map((mission) => `
+  el.missionList.innerHTML = (workspace.missions || []).length ? (workspace.missions || []).map((mission) => `
     <div class="mission-item">
       <div class="mission-top">
         <div>
@@ -348,9 +358,9 @@ function renderWorkspace() {
         `).join('')}
       </div>
     </div>
-  `).join('');
+  `).join('') : '<div class="empty-state"><strong>Поручений пока нет</strong><p>Нажмите “Новое поручение”, чтобы помощник составил план и подготовил результат.</p></div>';
 
-  el.artifactList.innerHTML = (workspace.artifacts || []).map((artifact) => `
+  el.artifactList.innerHTML = (workspace.artifacts || []).length ? (workspace.artifacts || []).map((artifact) => `
     <article class="artifact-item">
       <div class="artifact-meta"><span>${escapeHtml(artifactTypeLabel(artifact.type))}</span></div>
       <strong>${escapeHtml(artifact.title)}</strong>
@@ -364,7 +374,7 @@ function renderWorkspace() {
         <button type="button" data-artifact-task="${escapeHtml(artifact.id)}">Создать задачу</button>
       </div>
     </article>
-  `).join('');
+  `).join('') : '<div class="empty-state"><strong>Готовых материалов пока нет</strong><p>Материалы появятся после выполнения поручений.</p></div>';
 
   const workflow = [
     { label: 'Как работает помощник', value: modeLabel(workspace.mode) },
@@ -608,7 +618,7 @@ async function sendMessage(text) {
       state.workspace = result.workspace;
     } else if (workspace) {
       const reply = generateReply(workspace, safeText);
-      addLocalMessage(workspace, 'agent', reply, 'Агент ' + workspace.name);
+      addLocalMessage(workspace, 'agent', reply, agentDisplayName(workspace));
       state.workspace = workspace;
       persistLocal();
     }
@@ -659,10 +669,58 @@ async function createMission(goal) {
   } else {
     const workspace = currentWorkspace();
     const result = startLocalMission(workspace, safeGoal);
-    addLocalMessage(workspace, 'agent', `Запустил поручение: «${result.mission.goal}». План и материал уже доступны справа.`, 'Агент ' + workspace.name);
+    addLocalMessage(workspace, 'agent', `Запустил поручение: «${result.mission.goal}». План и материал уже доступны справа.`, agentDisplayName(workspace));
     state.workspace = workspace;
     persistLocal();
   }
+  render();
+}
+
+async function saveAgentSettings() {
+  if (!state.currentUser) return;
+  const payload = {
+    name: el.agentName.value,
+    role: el.agentRole.value,
+    instructions: el.agentInstructions.value
+  };
+  if (state.apiAvailable) {
+    const result = await apiRequest('/api/agent-settings', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    state.workspace = result.workspace;
+  } else {
+    const workspace = currentWorkspace();
+    workspace.agentConfig = {
+      name: String(payload.name || '').trim(),
+      role: String(payload.role || '').trim(),
+      instructions: String(payload.instructions || '').trim(),
+      setupDone: Boolean(payload.name || payload.role || payload.instructions)
+    };
+    state.workspace = workspace;
+    persistLocal();
+  }
+  render();
+}
+
+async function resetWorkspace() {
+  if (!state.currentUser) return;
+  if (!window.confirm('Очистить только ваше окружение: чат, задачи, поручения, материалы и настройки агента?')) return;
+  if (state.apiAvailable) {
+    const result = await apiRequest('/api/workspace/reset', { method: 'POST', body: '{}' });
+    state.workspace = result.workspace;
+  } else {
+    const workspace = currentWorkspace();
+    workspace.tasks = [];
+    workspace.messages = [];
+    workspace.missions = [];
+    workspace.artifacts = [];
+    workspace.agentConfig = { name: '', role: '', instructions: '', setupDone: false };
+    workspace.mode = 'approve';
+    state.workspace = workspace;
+    persistLocal();
+  }
+  state.currentView = 'settings';
   render();
 }
 
@@ -789,6 +847,15 @@ function bindEvents() {
       if (!artifact) return;
       await createTask('Доработать материал: ' + artifact.title);
     }
+  });
+
+  el.agentSettings.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    await saveAgentSettings();
+  });
+
+  el.resetWorkspaceBtn.addEventListener('click', async () => {
+    await resetWorkspace();
   });
 
   el.newTaskBtn.addEventListener('click', () => {

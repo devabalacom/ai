@@ -38,10 +38,16 @@ function seedWorkspace(userName, mode, quickActions, tasks, messages, missions, 
     mode: mode,
     model: 'OpenClaw workflow',
     quickActions: quickActions,
-    tasks: tasks,
-    messages: messages,
-    missions: missions,
-    artifacts: artifacts
+    tasks: [],
+    messages: [],
+    missions: [],
+    artifacts: [],
+    agentConfig: {
+      name: '',
+      role: '',
+      instructions: '',
+      setupDone: false
+    }
   };
 }
 
@@ -129,11 +135,13 @@ async function initDb() {
       tasks jsonb NOT NULL,
       messages jsonb NOT NULL,
       missions jsonb NOT NULL DEFAULT '[]'::jsonb,
-      artifacts jsonb NOT NULL DEFAULT '[]'::jsonb
+      artifacts jsonb NOT NULL DEFAULT '[]'::jsonb,
+      agent_config jsonb NOT NULL DEFAULT '{}'::jsonb
     );
   `);
   await pool.query("ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS missions jsonb NOT NULL DEFAULT '[]'::jsonb");
   await pool.query("ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS artifacts jsonb NOT NULL DEFAULT '[]'::jsonb");
+  await pool.query("ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS agent_config jsonb NOT NULL DEFAULT '{}'::jsonb");
   await pool.query(`
     CREATE TABLE IF NOT EXISTS sessions (
       token text PRIMARY KEY,
@@ -158,8 +166,8 @@ async function initDb() {
 
   for (const workspace of seedWorkspaces) {
     await pool.query(`
-      INSERT INTO workspaces (id, name, title, mode, model, quick_actions, tasks, messages, missions, artifacts)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      INSERT INTO workspaces (id, name, title, mode, model, quick_actions, tasks, messages, missions, artifacts, agent_config)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       ON CONFLICT (id) DO NOTHING
     `, [
       workspace.id,
@@ -171,7 +179,8 @@ async function initDb() {
       JSON.stringify(workspace.tasks),
       JSON.stringify(workspace.messages),
       JSON.stringify(workspace.missions),
-      JSON.stringify(workspace.artifacts)
+      JSON.stringify(workspace.artifacts),
+      JSON.stringify(workspace.agentConfig)
     ]);
     await pool.query('UPDATE workspaces SET missions = $1, artifacts = $2 WHERE id = $3 AND jsonb_array_length(missions) = 0 AND jsonb_array_length(artifacts) = 0', [
       JSON.stringify(workspace.missions),
@@ -181,6 +190,7 @@ async function initDb() {
   }
 
   await pool.query("UPDATE workspaces SET model = 'OpenClaw workflow' WHERE model IS DISTINCT FROM 'OpenClaw workflow'");
+  await pool.query("UPDATE workspaces SET agent_config = jsonb_build_object('name', '', 'role', '', 'instructions', '', 'setupDone', false) WHERE agent_config = '{}'::jsonb");
 }
 
 function parseCookies(req) {
@@ -300,12 +310,13 @@ function rowToWorkspace(row) {
     tasks: row.tasks || [],
     messages: row.messages || [],
     missions: row.missions || [],
-    artifacts: row.artifacts || []
+    artifacts: row.artifacts || [],
+    agentConfig: row.agent_config || { name: '', role: '', instructions: '', setupDone: false }
   };
 }
 
 async function saveWorkspace(workspace) {
-  await pool.query('UPDATE workspaces SET name = $1, title = $2, mode = $3, model = $4, quick_actions = $5, tasks = $6, messages = $7, missions = $8, artifacts = $9 WHERE id = $10', [
+  await pool.query('UPDATE workspaces SET name = $1, title = $2, mode = $3, model = $4, quick_actions = $5, tasks = $6, messages = $7, missions = $8, artifacts = $9, agent_config = $10 WHERE id = $11', [
     workspace.name,
     workspace.title,
     workspace.mode,
@@ -315,6 +326,7 @@ async function saveWorkspace(workspace) {
     JSON.stringify(workspace.messages),
     JSON.stringify(workspace.missions || []),
     JSON.stringify(workspace.artifacts || []),
+    JSON.stringify(workspace.agentConfig || {}),
     workspace.id
   ]);
 }
@@ -465,8 +477,12 @@ function extractIntent(message) {
 }
 
 function buildOpenClawPrompt(workspace, agentFiles, userText) {
+  const agentConfig = workspace.agentConfig || {};
   return [
     agentFiles.soul || 'Ты личный рабочий агент сотрудника компании.',
+    agentConfig.name ? 'Имя агента: ' + agentConfig.name : '',
+    agentConfig.role ? 'Роль агента: ' + agentConfig.role : '',
+    agentConfig.instructions ? 'Настройки сотрудника для агента:\n' + agentConfig.instructions : '',
     agentFiles.user ? 'Профиль сотрудника:\n' + agentFiles.user : '',
     agentFiles.workflow ? 'Workflow:\n' + agentFiles.workflow : '',
     agentFiles.memory ? 'Память:\n' + agentFiles.memory : '',
@@ -477,6 +493,11 @@ function buildOpenClawPrompt(workspace, agentFiles, userText) {
     'Отвечай по-русски, коротко и по делу.',
     'Сообщение пользователя: ' + userText
   ].filter(Boolean).join('\n\n');
+}
+
+function getAgentDisplayName(workspace) {
+  const agentConfig = workspace.agentConfig || {};
+  return agentConfig.name || ('Агент ' + workspace.name);
 }
 
 function generateWorkflowReply(workspace, message, agentFiles) {
@@ -623,13 +644,48 @@ async function handleMission(req, res) {
       return;
     }
     const result = startMission(ctx.workspace, goal);
-    addMessage(ctx.workspace, 'agent', 'Запустил поручение: «' + result.mission.goal + '». План и материал уже доступны справа.', 'Агент ' + ctx.workspace.name);
+    addMessage(ctx.workspace, 'agent', 'Запустил поручение: «' + result.mission.goal + '». План и материал уже доступны справа.', getAgentDisplayName(ctx.workspace));
     await saveWorkspace(ctx.workspace);
     sendJson(res, 200, { workspace: ctx.workspace, mission: result.mission, artifact: result.artifact });
   } catch (error) {
     console.error('Failed to handle /api/missions:', error);
     sendJson(res, 500, { error: 'mission_failed' });
   }
+}
+
+async function handleAgentSettings(req, res) {
+  const ctx = await getAuthenticatedContext(req, res);
+  if (!ctx) return;
+  try {
+    const body = await readBody(req);
+    const name = String(body.name || '').trim().slice(0, 80);
+    const role = String(body.role || '').trim().slice(0, 160);
+    const instructions = String(body.instructions || '').trim().slice(0, 2000);
+    ctx.workspace.agentConfig = {
+      name: name,
+      role: role,
+      instructions: instructions,
+      setupDone: Boolean(name || role || instructions)
+    };
+    await saveWorkspace(ctx.workspace);
+    sendJson(res, 200, { workspace: ctx.workspace });
+  } catch (error) {
+    console.error('Failed to handle /api/agent-settings:', error);
+    sendJson(res, 500, { error: 'agent_settings_failed' });
+  }
+}
+
+async function handleWorkspaceReset(req, res) {
+  const ctx = await getAuthenticatedContext(req, res);
+  if (!ctx) return;
+  ctx.workspace.tasks = [];
+  ctx.workspace.messages = [];
+  ctx.workspace.missions = [];
+  ctx.workspace.artifacts = [];
+  ctx.workspace.agentConfig = { name: '', role: '', instructions: '', setupDone: false };
+  ctx.workspace.mode = 'approve';
+  await saveWorkspace(ctx.workspace);
+  sendJson(res, 200, { workspace: ctx.workspace });
 }
 
 async function handleLogin(req, res) {
@@ -671,7 +727,7 @@ async function handleMessage(req, res) {
     const agentFiles = getAgentFiles(ctx.workspace.id);
     const reply = await answerWorkspaceMessage(ctx.workspace, text, agentFiles);
     tryWorkflowAction(ctx.workspace, text, reply);
-    addMessage(ctx.workspace, 'agent', reply, 'Агент ' + ctx.workspace.name);
+    addMessage(ctx.workspace, 'agent', reply, getAgentDisplayName(ctx.workspace));
     ctx.workspace.model = WORKFLOW_PROVIDER === 'openclaw'
       ? getGatewayModelForWorkspace(ctx.workspace.id)
       : ctx.workspace.model;
@@ -786,6 +842,8 @@ async function main() {
     if (pathname === '/api/logout' && req.method === 'POST') { asyncHandler(req, res, () => handleLogout(req, res)); return; }
     if (pathname === '/api/message' && req.method === 'POST') { asyncHandler(req, res, () => handleMessage(req, res)); return; }
     if (pathname === '/api/missions' && req.method === 'POST') { asyncHandler(req, res, () => handleMission(req, res)); return; }
+    if (pathname === '/api/agent-settings' && req.method === 'POST') { asyncHandler(req, res, () => handleAgentSettings(req, res)); return; }
+    if (pathname === '/api/workspace/reset' && req.method === 'POST') { asyncHandler(req, res, () => handleWorkspaceReset(req, res)); return; }
     if (pathname === '/api/workspace/mode' && req.method === 'POST') { asyncHandler(req, res, () => handleMode(req, res)); return; }
     if (pathname === '/api/tasks' && req.method === 'POST') { asyncHandler(req, res, () => handleTasks(req, res)); return; }
     const taskMatch = pathname.match(/^\/api\/tasks\/([^/]+)$/);
