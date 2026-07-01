@@ -53,9 +53,9 @@ function seedWorkspace(userName, mode, quickActions, tasks, messages, missions, 
 
 const seedWorkspaces = [
   seedWorkspace('Алина', 'approve', [
+    'Найди свежую информацию в интернете',
+    'Сгенерируй изображение для ответа',
     'Запусти поручение: разобрать тикет',
-    'Подготовь план ответа клиенту',
-    'Исследуй проблему доступа',
     'Покажи статус поручений'
   ], [
     { id: 't1', title: 'Ответить на тикет по доступам', details: 'Подготовить короткий черновик ответа', status: 'todo' },
@@ -83,9 +83,9 @@ const seedWorkspaces = [
     { id: 'artifact-support-1', title: 'Черновик ответа клиенту', type: 'reply', summary: 'Короткий ответ по доступам с понятным следующим шагом.', content: 'Здравствуйте. Проверили доступы: учетная запись активна. Попробуйте войти заново, если ошибка повторится, пришлите скриншот и время попытки входа.' }
   ]),
   seedWorkspace('Дамир', 'approve', [
+    'Найди свежую информацию в интернете',
+    'Сгенерируй изображение для клиента',
     'Запусти поручение: подготовить follow-up',
-    'Проанализируй прайс и сроки',
-    'Подготовь коммерческий черновик',
     'Покажи статус поручений'
   ], [
     { id: 't3', title: 'Ответить клиенту по срокам', details: 'Сначала проверить подтвержденную дату', status: 'todo' },
@@ -190,6 +190,24 @@ async function initDb() {
   }
 
   await pool.query("UPDATE workspaces SET model = 'OpenClaw workflow' WHERE model IS DISTINCT FROM 'OpenClaw workflow'");
+  await pool.query('UPDATE workspaces SET quick_actions = $1 WHERE id = $2', [
+    JSON.stringify([
+      'Найди свежую информацию в интернете',
+      'Сгенерируй изображение для ответа',
+      'Запусти поручение: разобрать тикет',
+      'Покажи статус поручений'
+    ]),
+    'support-agent'
+  ]);
+  await pool.query('UPDATE workspaces SET quick_actions = $1 WHERE id = $2', [
+    JSON.stringify([
+      'Найди свежую информацию в интернете',
+      'Сгенерируй изображение для клиента',
+      'Запусти поручение: подготовить follow-up',
+      'Покажи статус поручений'
+    ]),
+    'sales-agent'
+  ]);
   await pool.query("UPDATE workspaces SET agent_config = jsonb_build_object('name', '', 'role', '', 'instructions', '', 'setupDone', false) WHERE agent_config = '{}'::jsonb");
 }
 
@@ -489,6 +507,7 @@ function buildOpenClawPrompt(workspace, agentFiles, userText) {
     'Текущий режим: ' + workspace.mode + '.',
     'Активные миссии: ' + JSON.stringify((workspace.missions || []).slice(0, 3)),
     'Последние артефакты: ' + JSON.stringify((workspace.artifacts || []).slice(0, 3)),
+    'Доступные инструменты агента: поиск свежей информации в интернете и генерация изображений. Если запрос требует внешних данных, явно используй интернет-поиск и кратко укажи источники. Если запрос требует визуала, подготовь результат через генерацию изображения или дай точный промпт/параметры для генерации.',
     'Контекст изолирован: видишь только одного сотрудника и его workspace.',
     'Отвечай по-русски, коротко и по делу.',
     'Сообщение пользователя: ' + userText
@@ -523,7 +542,11 @@ function generateWorkflowReply(workspace, message, agentFiles) {
   }
 
   if (intent === 'search') {
-    return 'Понял. Ищу релевантный документ, прайс или шаблон в личной базе этого агента.';
+    return 'Понял. У агента включен поиск в интернете: сначала проверю свежую информацию, потом верну короткий вывод и источники.';
+  }
+
+  if (/картин|изображ|иллюстрац|image|generate image|сгенер/.test(String(message).toLowerCase())) {
+    return 'Принял. У этого агента включена генерация изображений: подготовлю промпт, стиль и результат как готовый материал.';
   }
 
   if (intent === 'status') {

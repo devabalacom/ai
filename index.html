@@ -56,7 +56,7 @@
 
     <section class="dashboard hidden" id="dashboard" aria-live="polite">
       <div class="control-layout">
-        <aside class="side-nav">
+        <aside class="side-nav" id="side-nav" aria-label="Навигация AgentHub">
           <div class="brand-block">
             <div class="brand-mark">A</div>
             <div>
@@ -65,18 +65,23 @@
             </div>
           </div>
           <nav class="nav-list" aria-label="Разделы">
-            <a class="active" href="#workspace-grid" data-view="chat">Чат</a>
-            <a href="#mission-list" data-view="missions">Поручения</a>
-            <a href="#task-list" data-view="tasks">Задачи</a>
-            <a href="#artifact-list" data-view="artifacts">Готовые материалы</a>
-            <a href="#onboarding-list" data-view="help">Как начать</a>
-            <a href="#agent-settings" data-view="settings">Настройки</a>
+            <a class="active" href="#workspace-grid" data-view="chat" data-short="Ч">Чат</a>
+            <a href="#mission-list" data-view="missions" data-short="П">Поручения</a>
+            <a href="#task-list" data-view="tasks" data-short="З">Задачи</a>
+            <a href="#artifact-list" data-view="artifacts" data-short="М">Готовые материалы</a>
+            <a href="#onboarding-list" data-view="help" data-short="?">Как начать</a>
+            <a href="#agent-settings" data-view="settings" data-short="Н">Настройки</a>
           </nav>
           <button class="chip logout-wide" id="logout-btn">Выйти</button>
         </aside>
 
         <div class="control-main">
           <header class="topbar">
+            <button class="sidebar-toggle" id="sidebar-toggle" type="button" aria-controls="side-nav" aria-expanded="true" aria-label="Открыть меню">
+              <span></span>
+              <span></span>
+              <span></span>
+            </button>
             <div>
               <div class="eyebrow">Личный помощник</div>
               <h2 id="workspace-title">—</h2>
@@ -100,6 +105,7 @@
                   </div>
                 </div>
                 <div class="quick-actions" id="quick-actions"></div>
+                <div class="tool-strip" id="agent-tools" aria-label="Инструменты агента"></div>
                 <div class="messages" id="messages" aria-label="История чата" role="log" aria-live="polite"></div>
                 <form class="composer" id="composer">
                   <input id="message-input" type="text" placeholder="Напишите, что нужно сделать" autocomplete="off" aria-label="Ввод сообщения">

@@ -15,7 +15,7 @@ const fallbackWorkspaces = {
     title: 'Личный рабочий агент',
     mode: 'approve',
     model: 'OpenClaw workflow',
-    quickActions: ['Запусти поручение: разобрать тикет', 'Подготовь план ответа клиенту', 'Исследуй проблему доступа', 'Покажи статус поручений'],
+    quickActions: ['Найди свежую информацию в интернете', 'Сгенерируй изображение для ответа', 'Запусти поручение: разобрать тикет', 'Покажи статус поручений'],
     tasks: [],
     messages: [],
     agentConfig: { name: '', role: '', instructions: '', setupDone: false },
@@ -28,7 +28,7 @@ const fallbackWorkspaces = {
     title: 'Личный рабочий агент',
     mode: 'approve',
     model: 'OpenClaw workflow',
-    quickActions: ['Запусти поручение: подготовить follow-up', 'Проанализируй прайс и сроки', 'Подготовь коммерческий черновик', 'Покажи статус поручений'],
+    quickActions: ['Найди свежую информацию в интернете', 'Сгенерируй изображение для клиента', 'Запусти поручение: подготовить follow-up', 'Покажи статус поручений'],
     tasks: [],
     messages: [],
     agentConfig: { name: '', role: '', instructions: '', setupDone: false },
@@ -59,6 +59,11 @@ const statusCopy = {
   running: 'В работе'
 };
 
+const agentTools = [
+  { id: 'web', label: 'Поиск в интернете', status: 'включен' },
+  { id: 'image', label: 'Генерация изображений', status: 'включена' }
+];
+
 const artifactTypeCopy = {
   reply: 'Ответ клиенту',
   draft: 'Черновик',
@@ -74,7 +79,8 @@ const state = {
   pendingTask: false,
   pendingMission: false,
   sendingMessage: false,
-  currentView: 'chat'
+  currentView: 'chat',
+  sidebarCollapsed: window.matchMedia('(max-width: 1100px)').matches
 };
 
 const el = {
@@ -85,6 +91,8 @@ const el = {
   password: document.getElementById('password'),
   demoFill: document.getElementById('demo-fill'),
   logoutBtn: document.getElementById('logout-btn'),
+  sideNav: document.getElementById('side-nav'),
+  sidebarToggle: document.getElementById('sidebar-toggle'),
   profileName: document.getElementById('profile-name'),
   profileMeta: document.getElementById('profile-meta'),
   workspaceTitle: document.getElementById('workspace-title'),
@@ -95,6 +103,7 @@ const el = {
   modeSwitch: document.getElementById('mode-switch'),
   modeHelp: document.getElementById('mode-help'),
   quickActions: document.getElementById('quick-actions'),
+  agentTools: document.getElementById('agent-tools'),
   messages: document.getElementById('messages'),
   composer: document.getElementById('composer'),
   messageInput: document.getElementById('message-input'),
@@ -252,6 +261,9 @@ function renderAuthState() {
   const loggedIn = Boolean(state.currentUser);
   el.authCard.classList.toggle('hidden', loggedIn);
   el.dashboard.classList.toggle('hidden', !loggedIn);
+  el.dashboard.classList.toggle('sidebar-collapsed', state.sidebarCollapsed);
+  el.sidebarToggle?.setAttribute('aria-expanded', String(!state.sidebarCollapsed));
+  el.sidebarToggle?.setAttribute('aria-label', state.sidebarCollapsed ? 'Открыть меню' : 'Скрыть меню');
 }
 
 function renderUserSelect() {
@@ -306,12 +318,19 @@ function renderWorkspace() {
     <button class="quick-chip" type="button" data-quick="${escapeHtml(item)}">${escapeHtml(item)}</button>
   `).join('');
 
+  el.agentTools.innerHTML = agentTools.map((tool) => `
+    <div class="tool-chip" data-tool="${escapeHtml(tool.id)}">
+      <strong>${escapeHtml(tool.label)}</strong>
+      <span>${escapeHtml(tool.status)}</span>
+    </div>
+  `).join('');
+
   el.messages.innerHTML = workspace.messages.length ? workspace.messages.map((message) => {
-    const copyBtnHtml = message.role !== 'user' ? `<button class="copy-msg-btn" data-copy="${escapeHtml(message.text).replace(/"/g, '&quot;')}" style="padding: 4px 8px; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 4px; color: var(--soft); cursor: pointer; font-size: 12px; font-weight: 500; transition: all 200ms ease;" title="Скопировать">📋</button>` : '';
+    const copyBtnHtml = message.role !== 'user' ? `<button class="copy-msg-btn" data-copy="${escapeHtml(message.text)}" type="button" title="Скопировать" aria-label="Скопировать ответ">⧉</button>` : '';
     return `
     <article class="message ${escapeHtml(message.role)}">
       <div class="message-meta">
-        <div style="display: flex; gap: 12px; align-items: center;">
+        <div class="message-author">
           <span>${escapeHtml(message.author)}</span>
           ${copyBtnHtml}
         </div>
@@ -333,10 +352,10 @@ function renderWorkspace() {
       navigator.clipboard.writeText(text).then(() => {
         const originalText = btn.textContent;
         btn.textContent = '✓';
-        btn.style.background = 'rgba(34, 197, 94, 0.2)';
+        btn.classList.add('copied');
         setTimeout(() => {
           btn.textContent = originalText;
-          btn.style.background = 'rgba(56, 189, 248, 0.1)';
+          btn.classList.remove('copied');
         }, 2000);
       }).catch(err => {
         console.error('Copy failed:', err);
@@ -507,8 +526,12 @@ function generateReply(workspace, message) {
       : `Могу добавить задачу «${title}». Подтверди, если ок.`;
   }
 
-  if (/прайс|цена|документ|найди|поиск/.test(lower)) {
-    return 'Понял. В этом MVP я найду релевантный шаблон, прайс или документ в личной базе.';
+  if (/картин|изображ|иллюстрац|image|generate image|сгенер/.test(lower)) {
+    return 'Принял. У этого агента включена генерация изображений: подготовлю промпт, стиль и результат как готовый материал.';
+  }
+
+  if (/прайс|цена|документ|найди|поиск|интернет|web|сайт/.test(lower)) {
+    return 'Понял. У агента включен поиск в интернете: сначала проверю свежую информацию, потом верну короткий вывод и источники.';
   }
 
   if (/статус|блок|риск/.test(lower)) {
@@ -843,11 +866,18 @@ function bindEvents() {
     logoutUser();
   });
 
+  el.sidebarToggle.addEventListener('click', () => {
+    state.sidebarCollapsed = !state.sidebarCollapsed;
+    renderAuthState();
+  });
+
   el.navLinks.forEach((link) => {
     link.addEventListener('click', (event) => {
       event.preventDefault();
       state.currentView = link.dataset.view || 'chat';
+      if (window.matchMedia('(max-width: 1100px)').matches) state.sidebarCollapsed = true;
       renderViewState();
+      renderAuthState();
     });
   });
 
