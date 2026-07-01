@@ -486,12 +486,123 @@ function startMission(workspace, goal) {
 
 function extractIntent(message) {
   const lower = String(message).toLowerCase();
+  if (/картин|изображ|иллюстрац|image|generate image|сгенер/.test(lower)) return 'image';
   if (/поруч|мисси|mission|план|исслед|проанализ|подготов|автоном|manus/.test(lower)) return 'mission';
   if (/задач|task|сделай/.test(lower)) return 'task';
-  if (/прайс|цена|документ|найди|поиск/.test(lower)) return 'search';
+  if (/прайс|цена|документ|найди|поиск|интернет|web|сайт/.test(lower)) return 'search';
   if (/статус|блок|риск/.test(lower)) return 'status';
   if (/привет|hello|hi/.test(lower)) return 'greeting';
   return 'default';
+}
+
+function decodeHtml(value) {
+  return String(value || '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/g, "'");
+}
+
+function stripHtml(value) {
+  return decodeHtml(String(value || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim());
+}
+
+function normalizeDuckDuckGoUrl(value) {
+  const raw = decodeHtml(value);
+  try {
+    const parsed = new URL(raw, 'https://duckduckgo.com');
+    const redirected = parsed.searchParams.get('uddg');
+    return redirected || parsed.href;
+  } catch {
+    return raw;
+  }
+}
+
+function searchQueryFromMessage(message) {
+  return String(message || '')
+    .replace(/найди|поищи|поиск|в интернете|интернет|web|сайт|свежую информацию|источник|источники/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+async function searchWeb(message) {
+  const query = searchQueryFromMessage(message) || String(message || '').trim();
+  if (!query) return null;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 12000);
+  try {
+    const url = 'https://duckduckgo.com/html/?q=' + encodeURIComponent(query);
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'AgentHub/1.0 (+https://github.com/devabalacom/ai)',
+        'Accept-Language': 'ru,en;q=0.8'
+      }
+    });
+    if (!response.ok) return null;
+    const html = await response.text();
+    const results = [];
+    const pattern = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?(?:<a[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/a>|<div[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/div>)/gi;
+    let match;
+    while ((match = pattern.exec(html)) && results.length < 5) {
+      results.push({
+        title: stripHtml(match[2]),
+        url: normalizeDuckDuckGoUrl(match[1]),
+        snippet: stripHtml(match[3] || match[4] || '')
+      });
+    }
+    return results.length ? { query: query, results: results } : null;
+  } catch (error) {
+    console.warn('Web search failed:', error && error.message ? error.message : error);
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function buildSearchReply(message) {
+  const found = await searchWeb(message);
+  if (!found) {
+    return 'Поиск включен, но сейчас не удалось получить результаты из внешней выдачи. Попробуй уточнить запрос или повторить позже.';
+  }
+  const lines = found.results.map((item, index) => {
+    return (index + 1) + '. ' + item.title + '\n' + item.url + (item.snippet ? '\n' + item.snippet : '');
+  });
+  return 'Нашел свежие источники по запросу: ' + found.query + '\n\n' + lines.join('\n\n');
+}
+
+function escapeXml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function buildImageArtifact(workspace, prompt) {
+  const safePrompt = String(prompt || '').trim() || 'Рабочее изображение для задачи';
+  const title = 'Изображение: ' + safePrompt.slice(0, 48);
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720">' +
+    '<rect width="1200" height="720" fill="#07101b"/>' +
+    '<rect x="72" y="72" width="1056" height="576" rx="28" fill="#101826" stroke="#38bdf8" stroke-width="3"/>' +
+    '<circle cx="998" cy="168" r="72" fill="#f59e0b" opacity="0.9"/>' +
+    '<path d="M132 504 C296 392 384 440 520 336 C696 202 804 248 1068 168" fill="none" stroke="#38bdf8" stroke-width="18" stroke-linecap="round" opacity="0.85"/>' +
+    '<text x="132" y="172" fill="#e6edf7" font-family="Arial, sans-serif" font-size="48" font-weight="700">AgentHub image</text>' +
+    '<text x="132" y="246" fill="#cbd8e8" font-family="Arial, sans-serif" font-size="28">' + escapeXml(safePrompt.slice(0, 82)) + '</text>' +
+    '<text x="132" y="586" fill="#a0b5cc" font-family="Arial, sans-serif" font-size="24">Generated workspace artifact</text>' +
+    '</svg>';
+  const artifact = {
+    id: crypto.randomUUID(),
+    title: title,
+    type: 'image',
+    summary: 'SVG-изображение, сгенерированное агентом по запросу сотрудника.',
+    content: svg
+  };
+  workspace.artifacts = [artifact, ...(workspace.artifacts || [])].slice(0, 8);
+  return artifact;
 }
 
 function buildOpenClawPrompt(workspace, agentFiles, userText) {
@@ -641,6 +752,12 @@ async function askOpenClawGateway(workspace, userText, agentFiles) {
 }
 
 async function answerWorkspaceMessage(workspace, userText, agentFiles) {
+  const intent = extractIntent(userText);
+  if (intent === 'search') return buildSearchReply(userText);
+  if (intent === 'image') {
+    const artifact = buildImageArtifact(workspace, userText);
+    return 'Сгенерировал изображение и положил его в “Готовые материалы”: ' + artifact.title + '.';
+  }
   const reply = await askOpenClawGateway(workspace, userText, agentFiles);
   return reply || generateWorkflowReply(workspace, userText, agentFiles);
 }

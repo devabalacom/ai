@@ -67,7 +67,8 @@ const agentTools = [
 const artifactTypeCopy = {
   reply: 'Ответ клиенту',
   draft: 'Черновик',
-  mission: 'Результат поручения'
+  mission: 'Результат поручения',
+  image: 'Изображение'
 };
 
 const state = {
