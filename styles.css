@@ -1,16 +1,17 @@
 :root {
   color-scheme: dark;
-  --bg: #07101b;
-  --panel: #101826;
-  --panel-strong: #151f30;
-  --line: rgba(148, 163, 184, 0.2);
-  --line-strong: rgba(148, 163, 184, 0.34);
-  --text: #e6edf7;
-  --muted: #a0b5cc;
-  --soft: #cbd8e8;
-  --accent: #38bdf8;
-  --accent-hover: #22c9ff;
-  --accent-2: #f59e0b;
+  --bg: #0b0d10;
+  --panel: #15181d;
+  --panel-strong: #1e2329;
+  --surface: #20262d;
+  --line: rgba(176, 184, 194, 0.18);
+  --line-strong: rgba(176, 184, 194, 0.32);
+  --text: #f2f5f8;
+  --muted: #9aa7b5;
+  --soft: #d4dbe3;
+  --accent: #14b8a6;
+  --accent-hover: #2dd4bf;
+  --accent-2: #eab308;
   --success: #22c55e;
   --danger: #f87171;
   --shadow: 0 16px 44px rgba(0, 0, 0, 0.28);
@@ -39,7 +40,7 @@ body {
   margin: 0;
   font-family: "Manrope", system-ui, sans-serif;
   color: var(--text);
-  background: linear-gradient(180deg, #08111c 0%, #060a12 100%);
+  background: linear-gradient(180deg, #101418 0%, #080a0d 100%);
   overflow-x: hidden;
   line-height: 1.6;
 }
@@ -79,16 +80,16 @@ button, input, select {
 
 .auth-card {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.7fr);
-  gap: 32px;
-  padding: 32px;
-  min-height: calc(100vh - 56px);
+  grid-template-columns: minmax(0, 0.9fr) minmax(360px, 0.62fr);
+  gap: 24px;
+  padding: 24px;
+  min-height: min(720px, calc(100vh - 56px));
   align-items: stretch;
 }
 
 .auth-copy {
   border-radius: var(--radius-xl);
-  padding: 32px;
+  padding: 28px;
   background: var(--panel-strong);
   border: 1px solid var(--line);
   display: flex;
@@ -109,7 +110,7 @@ button, input, select {
 }
 
 .auth-copy h1 {
-  font-size: clamp(2rem, 5vw, 4rem);
+  font-size: clamp(1.9rem, 4vw, 3.2rem);
   line-height: 1.1;
   margin: 12px 0 0;
   max-width: 13ch;
@@ -138,7 +139,7 @@ button, input, select {
 .artifact-item,
 .onboarding-step {
   border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.035);
+  background: rgba(255, 255, 255, 0.04);
   border-radius: var(--radius-md);
   transition: all var(--transition);
 }
@@ -156,6 +157,9 @@ button, input, select {
   gap: 16px;
   justify-content: center;
   padding: 0;
+  max-width: 430px;
+  width: 100%;
+  justify-self: center;
 }
 
 .panel-title {
@@ -197,7 +201,7 @@ button, input, select {
 .agent-settings textarea:focus {
   border-color: var(--accent);
   background: rgba(255, 255, 255, 0.06);
-  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.18);
 }
 
 .primary-btn, .ghost-btn, .chip {
@@ -211,16 +215,16 @@ button, input, select {
 
 .primary-btn {
   padding: 12px 20px;
-  color: #06101c;
+  color: #06100f;
   font-weight: 700;
-  background: #7dd3fc;
-  box-shadow: 0 16px 34px rgba(56, 189, 248, 0.14);
+  background: #5eead4;
+  box-shadow: 0 16px 34px rgba(20, 184, 166, 0.14);
 }
 
 .primary-btn:hover {
   background: var(--accent-hover);
   transform: translateY(-2px);
-  box-shadow: 0 20px 44px rgba(56, 189, 248, 0.24);
+  box-shadow: 0 20px 44px rgba(20, 184, 166, 0.22);
 }
 
 .primary-btn:active {
@@ -298,7 +302,7 @@ button, input, select {
 }
 
 .dashboard.sidebar-collapsed .control-layout {
-  grid-template-columns: 76px minmax(0, 1fr);
+  grid-template-columns: 96px minmax(0, 1fr);
 }
 
 .side-nav {
@@ -308,7 +312,7 @@ button, input, select {
   gap: 20px;
   min-height: calc(100dvh - 56px);
   padding: 20px;
-  background: #0d1522;
+  background: #111418;
   overflow: hidden;
   transition: background var(--transition), padding var(--transition), transform var(--transition);
 }
@@ -332,7 +336,7 @@ button, input, select {
   display: grid;
   place-items: center;
   background: var(--accent);
-  color: #06101c;
+  color: #06100f;
   font-weight: 700;
   font-size: 16px;
   flex-shrink: 0;
@@ -376,13 +380,13 @@ button, input, select {
 
 .nav-list a.active {
   color: var(--text);
-  background: rgba(56, 189, 248, 0.15);
-  border: 1px solid rgba(56, 189, 248, 0.3);
+  background: rgba(20, 184, 166, 0.14);
+  border: 1px solid rgba(20, 184, 166, 0.3);
 }
 
 .nav-list a:hover {
   color: var(--text);
-  background: rgba(56, 189, 248, 0.11);
+  background: rgba(20, 184, 166, 0.11);
 }
 
 .nav-list a:focus-visible {
@@ -412,7 +416,7 @@ button, input, select {
 .dashboard.sidebar-collapsed .nav-list a::before {
   content: attr(data-short);
   color: var(--soft);
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 800;
 }
 
@@ -460,8 +464,8 @@ button, input, select {
 }
 
 .sidebar-toggle:hover {
-  background: rgba(56, 189, 248, 0.12);
-  border-color: rgba(56, 189, 248, 0.42);
+  background: rgba(20, 184, 166, 0.12);
+  border-color: rgba(20, 184, 166, 0.42);
 }
 
 .topbar h2 {
@@ -488,7 +492,7 @@ button, input, select {
   min-width: 112px;
   padding: 12px 14px;
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.045);
   border: 1px solid var(--line);
 }
 
@@ -570,10 +574,10 @@ button, input, select {
 }
 
 .mode-chip.active {
-  border-color: rgba(56, 189, 248, 0.48);
+  border-color: rgba(20, 184, 166, 0.48);
   color: var(--accent);
-  background: rgba(56, 189, 248, 0.16);
-  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.1);
+  background: rgba(20, 184, 166, 0.14);
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
 }
 
 .tool-strip {
@@ -597,9 +601,9 @@ button, input, select {
 }
 
 .quick-chip:hover, .task-actions button:hover, .artifact-actions button:hover {
-  border-color: rgba(56, 189, 248, 0.48);
+  border-color: rgba(20, 184, 166, 0.48);
   color: var(--text);
-  background: rgba(56, 189, 248, 0.12);
+  background: rgba(20, 184, 166, 0.12);
 }
 
 .messages {
@@ -635,8 +639,8 @@ button, input, select {
 
 .message.user {
   margin-left: auto;
-  background: rgba(56, 189, 248, 0.14);
-  border-color: rgba(56, 189, 248, 0.28);
+  background: rgba(20, 184, 166, 0.14);
+  border-color: rgba(20, 184, 166, 0.28);
 }
 
 .message-meta {
@@ -661,9 +665,9 @@ button, input, select {
   place-items: center;
   padding: 0;
   border-radius: var(--radius-sm);
-  border: 1px solid rgba(56, 189, 248, 0.24);
+  border: 1px solid rgba(20, 184, 166, 0.24);
   color: var(--soft);
-  background: rgba(56, 189, 248, 0.1);
+  background: rgba(20, 184, 166, 0.1);
   cursor: pointer;
   font-size: 13px;
   transition: all var(--transition);
@@ -671,7 +675,7 @@ button, input, select {
 
 .copy-msg-btn:hover {
   color: var(--text);
-  background: rgba(56, 189, 248, 0.18);
+  background: rgba(20, 184, 166, 0.18);
 }
 
 .copy-msg-btn.copied {
@@ -828,9 +832,9 @@ button, input, select {
   text-transform: uppercase;
 }
 
-.badge.todo { 
-  background: rgba(56, 189, 248, 0.14); 
-  color: #a5f3fc; 
+.badge.todo {
+  background: rgba(20, 184, 166, 0.14);
+  color: #99f6e4;
 }
 .badge.waiting { 
   background: rgba(245, 158, 11, 0.14); 
@@ -983,7 +987,7 @@ button, input, select {
   display: grid;
   place-items: center;
   border-radius: var(--radius-sm);
-  color: #06101c;
+  color: #06100f;
   background: var(--accent);
   font-weight: 700;
   font-size: 13px;
@@ -1104,8 +1108,8 @@ button, input, select {
 
   .auth-card {
     min-height: auto;
-    padding: 20px;
-    gap: 24px;
+    padding: 16px;
+    gap: 18px;
   }
 
   .auth-copy, .panel, .topbar, .side-nav {
@@ -1121,8 +1125,9 @@ button, input, select {
   }
 
   .chat-panel {
-    height: calc(100dvh - 24px);
-    max-height: calc(100dvh - 24px);
+    height: auto;
+    max-height: none;
+    min-height: 560px;
   }
 
   .message {

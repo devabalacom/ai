@@ -26,8 +26,8 @@ if (!DATABASE_URL) {
 const pool = new Pool({ connectionString: DATABASE_URL });
 
 const seedUsers = [
-  { id: 'support', name: 'Алина', title: 'Support operations', password: 'Support#2026', agentId: 'support-agent' },
-  { id: 'sales', name: 'Дамир', title: 'Sales manager', password: 'Sales#2026', agentId: 'sales-agent' }
+  { id: 'support', name: 'Алина', title: 'Поддержка клиентов', password: 'Support#2026', agentId: 'support-agent' },
+  { id: 'sales', name: 'Дамир', title: 'Продажи', password: 'Sales#2026', agentId: 'sales-agent' }
 ];
 
 function seedWorkspace(userName, mode, quickActions, tasks, messages, missions, artifacts) {
@@ -36,7 +36,7 @@ function seedWorkspace(userName, mode, quickActions, tasks, messages, missions, 
     name: userName,
     title: 'Личный рабочий агент',
     mode: mode,
-    model: 'OpenClaw workflow',
+    model: 'Рабочий агент',
     quickActions: quickActions,
     tasks: [],
     messages: [],
@@ -189,7 +189,7 @@ async function initDb() {
     ]);
   }
 
-  await pool.query("UPDATE workspaces SET model = 'OpenClaw workflow' WHERE model IS DISTINCT FROM 'OpenClaw workflow'");
+  await pool.query("UPDATE workspaces SET model = 'Рабочий агент' WHERE model IS DISTINCT FROM 'Рабочий агент'");
   await pool.query('UPDATE workspaces SET quick_actions = $1 WHERE id = $2', [
     JSON.stringify([
       'Найди свежую информацию в интернете',
@@ -633,17 +633,17 @@ function getAgentDisplayName(workspace) {
 function generateWorkflowReply(workspace, message, agentFiles) {
   const intent = extractIntent(message);
   const agentTone = agentFiles.soul
-    ? 'Под капотом работает персональный агент через OpenClaw workflow.'
-    : 'Под капотом работает персональный workflow-агент.';
+    ? 'Под капотом работает персональный рабочий агент.'
+    : 'Под капотом работает персональный агент.';
 
   if (intent === 'task') {
     const title = String(message).replace(/создай|сделай|задачу|task/gi, '').trim() || 'Новая задача';
     if (!workspace.tasks.some((task) => task.title.toLowerCase() === title.toLowerCase())) {
-      addTask(workspace, title, 'Создано из чата OpenClaw workflow.');
+      addTask(workspace, title, 'Создано из чата рабочего агента.');
     }
     if (workspace.mode === 'execute') return 'Готово: задача «' + title + '» добавлена. ' + agentTone;
     if (workspace.mode === 'approve') return 'Могу добавить задачу «' + title + '». Подтверди, если ок. ' + agentTone;
-    return 'Могу оформить задачу «' + title + '» и добавить её в твой workflow. ' + agentTone;
+    return 'Могу оформить задачу «' + title + '» и добавить её в твое рабочее пространство. ' + agentTone;
   }
 
   if (intent === 'mission') {
@@ -677,7 +677,7 @@ function generateWorkflowReply(workspace, message, agentFiles) {
     return 'Выполняю безопасный сценарий и фиксирую результат в личном пространстве.';
   }
 
-  return agentFiles.workflow || 'Принял. Веду личное пространство сотрудника: чат, задачи и workflow.';
+  return agentFiles.workflow || 'Принял. Веду личное пространство сотрудника: чат, задачи и рабочие поручения.';
 }
 
 function toOpenAiMessages(workspace, userText, agentFiles) {
@@ -769,7 +769,7 @@ function tryWorkflowAction(workspace, text, reply) {
   if (!/добавлен|готово|могу/.test(String(reply).toLowerCase())) return;
   const title = String(text).replace(/создай|сделай|задачу|task/gi, '').trim() || 'Новая задача';
   if (!workspace.tasks.some((task) => task.title.toLowerCase() === title.toLowerCase())) {
-    addTask(workspace, title, 'Создано из чата OpenClaw workflow.');
+    addTask(workspace, title, 'Создано из чата рабочего агента.');
   }
 }
 

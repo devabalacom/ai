@@ -4,8 +4,8 @@ const TIME_ZONE = 'Europe/Moscow';
 const DEMO_MODE = new URLSearchParams(window.location.search).get('demo') === '1';
 
 const demoUsers = [
-  { id: 'support', name: 'Алина', title: 'Support operations', password: 'Support#2026', agentId: 'support-agent' },
-  { id: 'sales', name: 'Дамир', title: 'Sales manager', password: 'Sales#2026', agentId: 'sales-agent' }
+  { id: 'support', name: 'Алина', title: 'Поддержка клиентов', password: 'Support#2026', agentId: 'support-agent' },
+  { id: 'sales', name: 'Дамир', title: 'Продажи', password: 'Sales#2026', agentId: 'sales-agent' }
 ];
 
 const fallbackWorkspaces = {
@@ -14,7 +14,7 @@ const fallbackWorkspaces = {
     name: 'Алина',
     title: 'Личный рабочий агент',
     mode: 'approve',
-    model: 'OpenClaw workflow',
+    model: 'Рабочий агент',
     quickActions: ['Найди свежую информацию в интернете', 'Сгенерируй изображение для ответа', 'Запусти поручение: разобрать тикет', 'Покажи статус поручений'],
     tasks: [],
     messages: [],
@@ -27,7 +27,7 @@ const fallbackWorkspaces = {
     name: 'Дамир',
     title: 'Личный рабочий агент',
     mode: 'approve',
-    model: 'OpenClaw workflow',
+    model: 'Рабочий агент',
     quickActions: ['Найди свежую информацию в интернете', 'Сгенерируй изображение для клиента', 'Запусти поручение: подготовить follow-up', 'Покажи статус поручений'],
     tasks: [],
     messages: [],
@@ -39,7 +39,7 @@ const fallbackWorkspaces = {
 
 const onboardingSteps = [
   { title: 'Войти', text: 'Выбери свой рабочий аккаунт и введи пароль сотрудника.' },
-  { title: 'Дать цель', text: 'Запусти Mission: опиши результат, который агент должен подготовить автономно.' },
+  { title: 'Дать цель', text: 'Запусти поручение: опиши результат, который агент должен подготовить автономно.' },
   { title: 'Следить за планом', text: 'Агент разложит работу на шаги, покажет прогресс и текущий статус выполнения.' },
   { title: 'Забрать результат', text: 'Готовые черновики, ответы и рабочие результаты появляются в “Готовых материалах”.' }
 ];
@@ -553,7 +553,7 @@ function generateReply(workspace, message) {
     return 'Выполняю безопасный сценарий и фиксирую результат в личном пространстве.';
   }
 
-  return 'Принял. Могу отвечать, искать, создавать задачи и вести твой личный workflow.';
+  return 'Принял. Могу отвечать, искать, создавать задачи и вести твое личное рабочее пространство.';
 }
 
 async function detectBackend() {
