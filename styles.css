@@ -314,6 +314,7 @@ button, input, select {
   padding: 20px;
   background: #111418;
   overflow: hidden;
+  z-index: 20;
   transition: background var(--transition), padding var(--transition), transform var(--transition);
 }
 
@@ -325,6 +326,7 @@ button, input, select {
   display: flex;
   gap: 12px;
   align-items: center;
+  justify-content: space-between;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--line);
 }
@@ -357,6 +359,47 @@ button, input, select {
   color: var(--muted);
   font-size: 12px;
   margin-top: 2px;
+}
+
+.side-nav-toggle {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  gap: 3px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  color: var(--soft);
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.side-nav-toggle:hover {
+  color: var(--text);
+  background: rgba(20, 184, 166, 0.12);
+  border-color: rgba(20, 184, 166, 0.42);
+}
+
+.side-nav-toggle span {
+  width: 15px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  transition: transform var(--transition), opacity var(--transition);
+}
+
+.dashboard:not(.sidebar-collapsed) .side-nav-toggle span:nth-child(1) {
+  transform: translateY(5px) rotate(45deg);
+}
+
+.dashboard:not(.sidebar-collapsed) .side-nav-toggle span:nth-child(2) {
+  opacity: 0;
+}
+
+.dashboard:not(.sidebar-collapsed) .side-nav-toggle span:nth-child(3) {
+  transform: translateY(-5px) rotate(-45deg);
 }
 
 .nav-list {
@@ -405,12 +448,17 @@ button, input, select {
 }
 
 .dashboard.sidebar-collapsed .brand-block > div:not(.brand-mark),
+.dashboard.sidebar-collapsed .brand-mark,
 .dashboard.sidebar-collapsed .nav-list a,
 .dashboard.sidebar-collapsed .logout-wide {
   color: transparent;
   font-size: 0;
   justify-content: center;
   padding-inline: 0;
+}
+
+.dashboard.sidebar-collapsed .brand-mark {
+  display: none;
 }
 
 .dashboard.sidebar-collapsed .nav-list a::before {
@@ -430,6 +478,10 @@ button, input, select {
   display: grid;
   gap: 20px;
   min-width: 0;
+}
+
+.sidebar-backdrop {
+  display: none;
 }
 
 .topbar {
@@ -1048,7 +1100,7 @@ button, input, select {
 
   .side-nav {
     position: fixed;
-    z-index: 20;
+    z-index: 30;
     top: 10px;
     bottom: 10px;
     left: 10px;
@@ -1062,6 +1114,23 @@ button, input, select {
     padding: 20px;
   }
 
+  .sidebar-backdrop {
+    position: fixed;
+    z-index: 25;
+    inset: 0;
+    display: block;
+    background: rgba(2, 6, 23, 0.52);
+    backdrop-filter: blur(4px);
+    opacity: 1;
+    pointer-events: auto;
+    transition: opacity var(--transition);
+  }
+
+  .dashboard.sidebar-collapsed .sidebar-backdrop {
+    opacity: 0;
+    pointer-events: none;
+  }
+
   .dashboard.sidebar-collapsed .brand-block > div:not(.brand-mark),
   .dashboard.sidebar-collapsed .nav-list a,
   .dashboard.sidebar-collapsed .logout-wide {
@@ -1069,6 +1138,12 @@ button, input, select {
     font-size: 14px;
     justify-content: flex-start;
     padding-inline: 14px;
+  }
+
+  .dashboard.sidebar-collapsed .brand-mark {
+    display: grid;
+    padding-inline: 0;
+    color: #06100f;
   }
 
   .dashboard.sidebar-collapsed .nav-list a::before,

@@ -94,6 +94,8 @@ const el = {
   logoutBtn: document.getElementById('logout-btn'),
   sideNav: document.getElementById('side-nav'),
   sidebarToggle: document.getElementById('sidebar-toggle'),
+  sideNavToggle: document.getElementById('side-nav-toggle'),
+  sidebarBackdrop: document.getElementById('sidebar-backdrop'),
   profileName: document.getElementById('profile-name'),
   profileMeta: document.getElementById('profile-meta'),
   workspaceTitle: document.getElementById('workspace-title'),
@@ -265,6 +267,13 @@ function renderAuthState() {
   el.dashboard.classList.toggle('sidebar-collapsed', state.sidebarCollapsed);
   el.sidebarToggle?.setAttribute('aria-expanded', String(!state.sidebarCollapsed));
   el.sidebarToggle?.setAttribute('aria-label', state.sidebarCollapsed ? 'Открыть меню' : 'Скрыть меню');
+  el.sideNavToggle?.setAttribute('aria-expanded', String(!state.sidebarCollapsed));
+  el.sideNavToggle?.setAttribute('aria-label', state.sidebarCollapsed ? 'Открыть меню' : 'Свернуть меню');
+}
+
+function setSidebarCollapsed(collapsed) {
+  state.sidebarCollapsed = collapsed;
+  renderAuthState();
 }
 
 function renderUserSelect() {
@@ -868,8 +877,15 @@ function bindEvents() {
   });
 
   el.sidebarToggle.addEventListener('click', () => {
-    state.sidebarCollapsed = !state.sidebarCollapsed;
-    renderAuthState();
+    setSidebarCollapsed(!state.sidebarCollapsed);
+  });
+
+  el.sideNavToggle.addEventListener('click', () => {
+    setSidebarCollapsed(!state.sidebarCollapsed);
+  });
+
+  el.sidebarBackdrop.addEventListener('click', () => {
+    setSidebarCollapsed(true);
   });
 
   el.navLinks.forEach((link) => {
@@ -880,6 +896,12 @@ function bindEvents() {
       renderViewState();
       renderAuthState();
     });
+  });
+
+  window.addEventListener('resize', () => {
+    if (window.matchMedia('(max-width: 1100px)').matches && !state.sidebarCollapsed) {
+      setSidebarCollapsed(true);
+    }
   });
 
   el.modeSwitch.addEventListener('click', async (event) => {
