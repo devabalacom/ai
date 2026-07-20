@@ -58,6 +58,13 @@ const exampleRequests = [
   'Создай задачу: проверить доступы завтра утром'
 ];
 
+const quickActionLabels = [
+  { pattern: /интернет|свеж/i, label: 'Поиск' },
+  { pattern: /изображ/i, label: 'Изображение' },
+  { pattern: /поручение|follow-up|тикет/i, label: 'Поручение' },
+  { pattern: /статус/i, label: 'Статус' }
+];
+
 const statusCopy = {
   todo: 'Нужно сделать',
   waiting: 'Ждет ответа',
@@ -259,6 +266,11 @@ function agentDisplayName(workspace) {
   return workspace?.agentConfig?.name || (workspace ? 'Агент ' + workspace.name : 'Агент');
 }
 
+function quickActionLabel(text) {
+  const value = String(text || '');
+  return quickActionLabels.find((item) => item.pattern.test(value))?.label || value;
+}
+
 function backendStatusText() {
   if (state.apiAvailable) return 'Подключено к рабочему серверу. Данные сохраняются в вашем личном окружении.';
   if (DEMO_MODE) return 'Демо-режим: данные сохраняются только в этом браузере.';
@@ -418,7 +430,7 @@ function renderWorkspace() {
   `).join('');
 
   el.quickActions.innerHTML = workspace.quickActions.map((item) => `
-    <button class="quick-chip" type="button" data-quick="${escapeHtml(item)}">${escapeHtml(item)}</button>
+    <button class="quick-chip" type="button" data-quick="${escapeHtml(item)}" title="${escapeHtml(item)}">${escapeHtml(quickActionLabel(item))}</button>
   `).join('');
 
   el.agentTools.innerHTML = agentTools.map((tool) => `
