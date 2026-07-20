@@ -542,13 +542,19 @@ function startMission(workspace, goal) {
 
 function extractIntent(message) {
   const lower = String(message).toLowerCase();
-  if (/картин|изображ|иллюстрац|image|generate image|сгенер/.test(lower)) return 'image';
+  if (isImageRequest(lower)) return 'image';
   if (/поруч|мисси|mission|план|исслед|проанализ|подготов|автоном|manus/.test(lower)) return 'mission';
   if (/задач|task|сделай/.test(lower)) return 'task';
   if (/прайс|цена|документ|найди|поиск|интернет|web|сайт/.test(lower)) return 'search';
   if (/статус|блок|риск/.test(lower)) return 'status';
   if (/привет|hello|hi/.test(lower)) return 'greeting';
   return 'default';
+}
+
+function isImageRequest(message) {
+  const lower = String(message || '').toLowerCase();
+  if (/картин|изображ|иллюстрац|image|picture|photo|svg/.test(lower)) return true;
+  return /(сгенер|генерир|нарису|рису|создай|сделай|generate|draw|create).*(кот|кота|кошк|cat|портрет|логотип|баннер|иконк)/.test(lower);
 }
 
 function decodeHtml(value) {
@@ -714,7 +720,7 @@ function generateWorkflowReply(workspace, message, agentFiles) {
     return 'Понял. У агента включен поиск в интернете: сначала проверю свежую информацию, потом верну короткий вывод и источники.';
   }
 
-  if (/картин|изображ|иллюстрац|image|generate image|сгенер/.test(String(message).toLowerCase())) {
+  if (intent === 'image') {
     return 'Принял. У этого агента включена генерация изображений: подготовлю промпт, стиль и результат как готовый материал.';
   }
 
@@ -735,7 +741,24 @@ function generateWorkflowReply(workspace, message, agentFiles) {
     return 'Выполняю безопасный сценарий и фиксирую результат в личном пространстве.';
   }
 
-  return agentFiles.workflow || 'Принял. Веду личное пространство сотрудника: чат, задачи и рабочие поручения.';
+  return safeFallbackReply(workspace, intent);
+}
+
+function safeFallbackReply(workspace, intent) {
+  if (intent === 'greeting') return 'Привет. Что нужно сделать?';
+  if (intent === 'status') {
+    return 'Вижу текущий статус: ' + workspace.tasks.filter((task) => task.status !== 'done').length + ' открытых задач и ' + workspace.messages.length + ' сообщений в истории.';
+  }
+  return 'Принял. Опиши нужный результат, и я помогу подготовить ответ, задачу или материал.';
+}
+
+function sanitizeAgentReply(reply, workspace, intent) {
+  const text = String(reply || '').trim();
+  if (!text) return safeFallbackReply(workspace, intent);
+  if (/^#\s*Workflow/i.test(text) || /Прочитай сообщение сотрудника|Сначала пойми намерение|Workflow:/i.test(text)) {
+    return safeFallbackReply(workspace, intent);
+  }
+  return text;
 }
 
 function toOpenAiMessages(workspace, userText, agentFiles) {
@@ -820,7 +843,7 @@ async function answerWorkspaceMessage(workspace, userText, agentFiles) {
     };
   }
   const reply = await askOpenClawGateway(workspace, userText, agentFiles);
-  return { text: reply || generateWorkflowReply(workspace, userText, agentFiles) };
+  return { text: sanitizeAgentReply(reply || generateWorkflowReply(workspace, userText, agentFiles), workspace, intent) };
 }
 
 function tryWorkflowAction(workspace, text, reply) {

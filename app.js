@@ -683,8 +683,22 @@ function buildLocalImageArtifact(workspace, prompt) {
   return artifact;
 }
 
+function isImageRequest(message) {
+  const lower = String(message || '').toLowerCase();
+  if (/картин|изображ|иллюстрац|image|picture|photo|svg/.test(lower)) return true;
+  return /(сгенер|генерир|нарису|рису|создай|сделай|generate|draw|create).*(кот|кота|кошк|cat|портрет|логотип|баннер|иконк)/.test(lower);
+}
+
 function generateReply(workspace, message) {
   const lower = message.toLowerCase();
+
+  if (isImageRequest(message)) {
+    const artifact = buildLocalImageArtifact(workspace, message);
+    return {
+      text: 'Сгенерировал файл и прикрепил его в чат: ' + artifact.title + '. Его также можно найти в “Готовых материалах”.',
+      artifact: artifact
+    };
+  }
 
   if (/поруч|мисси|mission|план|исслед|проанализ|подготов|автоном|manus/.test(lower)) {
     const goal = message.replace(/создай|запусти|поручение|поручений|миссию|mission|план|агента|manus/gi, '').trim() || message;
@@ -698,14 +712,6 @@ function generateReply(workspace, message) {
     return workspace.mode === 'execute'
       ? `Готово: задача «${title}» добавлена.`
       : `Могу добавить задачу «${title}». Подтверди, если ок.`;
-  }
-
-  if (/картин|изображ|иллюстрац|image|generate image|сгенер/.test(lower)) {
-    const artifact = buildLocalImageArtifact(workspace, message);
-    return {
-      text: 'Сгенерировал файл и прикрепил его в чат: ' + artifact.title + '. Его также можно найти в “Готовых материалах”.',
-      artifact: artifact
-    };
   }
 
   if (/прайс|цена|документ|найди|поиск|интернет|web|сайт/.test(lower)) {
