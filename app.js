@@ -94,6 +94,7 @@ const state = {
   pendingTask: false,
   pendingMission: false,
   sendingMessage: false,
+  failedDraft: null,
   currentView: 'chat',
   sidebarCollapsed: window.matchMedia('(max-width: 1100px)').matches
 };
@@ -582,8 +583,10 @@ function configureDemoMode() {
 }
 
 function addLocalMessage(workspace, role, text, author) {
-  workspace.messages.push({ id: newId(), role, author, time: now(), text });
+  const message = { id: newId(), role, author, time: now(), text };
+  workspace.messages.push(message);
   workspace.messages = workspace.messages.slice(-50);
+  return message;
 }
 
 function addLocalTask(workspace, title, details) {
@@ -791,15 +794,22 @@ async function sendMessage(text) {
   if (state.sendingMessage) return;
   const safeText = String(text || '').trim();
   if (!safeText) return;
-  state.sendingMessage = true;
-  render();
-  const previousText = el.messageInput.value;
   const workspace = currentWorkspace();
+  if (!workspace) return;
+  const retryingFailedDraft = Boolean(
+    state.failedDraft
+    && state.failedDraft.text === safeText
+    && workspace.messages.some((message) => message.id === state.failedDraft.messageId)
+  );
 
-  if (workspace) {
-    addLocalMessage(workspace, 'user', safeText, state.currentUser.name);
-    render();
-  }
+  state.sendingMessage = true;
+  el.messageInput.value = '';
+  const optimisticMessageId = retryingFailedDraft
+    ? state.failedDraft.messageId
+    : addLocalMessage(workspace, 'user', safeText, state.currentUser.name).id;
+  state.failedDraft = null;
+  state.workspace = workspace;
+  render();
 
   try {
     if (state.apiAvailable) {
@@ -810,7 +820,7 @@ async function sendMessage(text) {
       });
       hideTypingIndicator();
       state.workspace = result.workspace;
-    } else if (workspace) {
+    } else {
       showTypingIndicator();
       // Simulate API delay for better UX
       await new Promise(resolve => setTimeout(resolve, 800));
@@ -820,17 +830,14 @@ async function sendMessage(text) {
       state.workspace = workspace;
       persistLocal();
     }
-    el.messageInput.value = '';
     render();
   } catch (error) {
     hideTypingIndicator();
-    if (workspace) {
-      addLocalMessage(workspace, 'agent', 'Не удалось получить ответ от сервера. Сообщение сохранено локально, попробуй отправить ещё раз.', 'Система');
-      state.workspace = workspace;
-      persistLocal();
-      render();
-    }
-    el.messageInput.value = previousText || safeText;
+    state.failedDraft = { text: safeText, messageId: optimisticMessageId };
+    addLocalMessage(workspace, 'agent', 'Не удалось получить ответ от сервера. Текст сохранен здесь, его можно скопировать и отправить повторно: «' + safeText + '»', 'Система');
+    state.workspace = workspace;
+    persistLocal();
+    render();
     alert('Не удалось отправить сообщение. Попробуй еще раз.');
   } finally {
     hideTypingIndicator();
@@ -1067,25 +1074,25 @@ function bindEvents() {
     }
   });
 
-  el.composer.addEventListener('submit', async (event) => {
-    event.preventDefault();
+  const submitCurrentMessage = async () => {
     const message = el.messageInput.value.trim();
     if (!message) return;
     await sendMessage(message);
+  };
+
+  el.composer.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    await submitCurrentMessage();
   });
 
   el.sendBtn.addEventListener('click', async () => {
-    const message = el.messageInput.value.trim();
-    if (!message) return;
-    await sendMessage(message);
+    await submitCurrentMessage();
   });
 
   el.messageInput.addEventListener('keydown', async (event) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-      const message = el.messageInput.value.trim();
-      if (!message) return;
-      await sendMessage(message);
+      await submitCurrentMessage();
     }
   });
 
