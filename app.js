@@ -51,6 +51,13 @@ const modeCopy = {
   execute: { label: 'Выполняет', description: 'Помощник сам выполняет безопасные действия.' }
 };
 
+const exampleRequests = [
+  'Подготовь ответ клиенту по последнему тикету',
+  'Найди свежую информацию и дай короткий вывод',
+  'Запусти поручение: разобрать задачу и собрать план',
+  'Создай задачу: проверить доступы завтра утром'
+];
+
 const statusCopy = {
   todo: 'Нужно сделать',
   waiting: 'Ждет ответа',
@@ -91,6 +98,7 @@ const el = {
   userSelect: document.getElementById('user-select'),
   password: document.getElementById('password'),
   demoFill: document.getElementById('demo-fill'),
+  backendStatus: document.getElementById('backend-status'),
   logoutBtn: document.getElementById('logout-btn'),
   sideNav: document.getElementById('side-nav'),
   sidebarToggle: document.getElementById('sidebar-toggle'),
@@ -102,6 +110,7 @@ const el = {
   workspaceHint: document.getElementById('workspace-hint'),
   topbarSummary: document.getElementById('topbar-summary'),
   todaySummary: document.getElementById('today-summary'),
+  nextStepCard: document.getElementById('next-step-card'),
   chatSubtitle: document.getElementById('chat-subtitle'),
   modeSwitch: document.getElementById('mode-switch'),
   modeHelp: document.getElementById('mode-help'),
@@ -250,6 +259,88 @@ function agentDisplayName(workspace) {
   return workspace?.agentConfig?.name || (workspace ? 'Агент ' + workspace.name : 'Агент');
 }
 
+function backendStatusText() {
+  if (state.apiAvailable) return 'Подключено к рабочему серверу. Данные сохраняются в вашем личном окружении.';
+  if (DEMO_MODE) return 'Демо-режим: данные сохраняются только в этом браузере.';
+  return 'Сервер недоступен: включен локальный режим для проверки интерфейса.';
+}
+
+function nextStep(workspace) {
+  const agentConfig = workspace.agentConfig || {};
+  if (!agentConfig.setupDone) {
+    return {
+      title: 'Сначала настройте помощника',
+      text: 'Укажите имя, роль и правила работы. После этого сотруднику проще понять, что агент делает сам, а где ждет подтверждения.',
+      action: 'Настроить',
+      view: 'settings'
+    };
+  }
+  if (!(workspace.missions || []).length && !(workspace.tasks || []).length && !(workspace.artifacts || []).length) {
+    return {
+      title: 'Лучший старт - первое поручение',
+      text: 'Поручение подходит для результата: план, черновик ответа, поиск, анализ или подготовка материала.',
+      action: 'Запустить поручение',
+      intent: 'mission'
+    };
+  }
+  const runningMissions = (workspace.missions || []).filter((mission) => mission.status === 'running').length;
+  if (runningMissions) {
+    return {
+      title: 'Есть поручение в работе',
+      text: 'Откройте раздел поручений, чтобы увидеть план, прогресс и связанный готовый материал.',
+      action: 'Открыть поручения',
+      view: 'missions'
+    };
+  }
+  if ((workspace.artifacts || []).length) {
+    return {
+      title: 'Проверьте готовые материалы',
+      text: 'Материал можно раскрыть полностью, скопировать или превратить в задачу на доработку.',
+      action: 'Открыть материалы',
+      view: 'artifacts'
+    };
+  }
+  return {
+    title: 'Продолжайте из чата',
+    text: 'Напишите коротко, что нужно получить. Если нужен результат с планом, запускайте поручение.',
+    action: 'Вставить пример',
+    intent: 'example'
+  };
+}
+
+function renderNextStep(workspace) {
+  const item = nextStep(workspace);
+  el.nextStepCard.innerHTML = `
+    <strong>${escapeHtml(item.title)}</strong>
+    <p>${escapeHtml(item.text)}</p>
+    <button class="ghost-btn next-step-action" type="button" data-next-view="${escapeHtml(item.view || '')}" data-next-intent="${escapeHtml(item.intent || '')}">${escapeHtml(item.action)}</button>
+  `;
+}
+
+function openMissionPrompt() {
+  el.promptTitle.textContent = 'Новое поручение помощнику';
+  el.promptLabel.textContent = 'Какой результат нужно подготовить?';
+  el.promptInput.placeholder = 'Например: разобрать тикет и подготовить черновик ответа';
+  el.promptInput.value = '';
+  el.promptHelp.textContent = 'Поручение подходит для работы с результатом: план, анализ, черновик, поиск или материал.';
+  el.promptSubmit.textContent = 'Запустить поручение';
+  state.pendingTask = false;
+  state.pendingMission = true;
+  el.promptModal.showModal();
+}
+
+function openTaskPrompt() {
+  el.promptTitle.textContent = 'Новая задача';
+  el.promptLabel.textContent = 'Что нужно не забыть?';
+  el.promptInput.placeholder = 'Например: ответить клиенту по доступам';
+  el.promptInput.value = '';
+  el.promptHelp.textContent = 'Задача - это напоминание или ручной следующий шаг. Для работы с результатом лучше поручение.';
+  el.promptSubmit.textContent = 'Добавить задачу';
+  state.pendingTask = true;
+  state.pendingMission = false;
+  el.promptModal.showModal();
+}
+
 function renderViewState() {
   el.navLinks.forEach((link) => {
     link.classList.toggle('active', link.dataset.view === state.currentView);
@@ -290,6 +381,7 @@ function renderUserSelect() {
   } else if (state.users[0]) {
     el.userSelect.value = String(state.users[0].id);
   }
+  if (el.backendStatus) el.backendStatus.textContent = backendStatusText();
 }
 
 function renderWorkspace() {
@@ -308,13 +400,14 @@ function renderWorkspace() {
   const runningMissions = (workspace.missions || []).filter((mission) => mission.status === 'running').length;
   const artifactCount = (workspace.artifacts || []).length;
   el.topbarSummary.textContent = `${workspace.model} · ${modeLabel(workspace.mode)} · ${openTasks} открытые задачи`;
-  el.chatSubtitle.textContent = 'Напишите помощнику или запустите поручение.';
+  el.chatSubtitle.textContent = 'Чат - для быстрых вопросов. Поручение - для результата с планом и материалом.';
   el.modeHelp.textContent = modeDescription(workspace.mode);
   el.todaySummary.innerHTML = `
     <div><strong>${openTasks}</strong><span>открытые задачи</span></div>
     <div><strong>${runningMissions}</strong><span>поручения в работе</span></div>
     <div><strong>${artifactCount}</strong><span>готовые материалы</span></div>
   `;
+  renderNextStep(workspace);
   el.agentName.value = agentConfig.name || '';
   el.agentRole.value = agentConfig.role || '';
   el.agentInstructions.value = agentConfig.instructions || '';
@@ -350,8 +443,11 @@ function renderWorkspace() {
     </article>
   `}).join('') : `
     <div class="empty-state">
-      <strong>Настройте агента и начните с первого запроса</strong>
-      <p>У этого сотрудника отдельная история. Сообщения других людей сюда не попадают.</p>
+      <strong>Начните с понятного запроса</strong>
+      <p>Можно написать вопрос в чат или запустить поручение, если нужен готовый результат.</p>
+      <div class="empty-actions">
+        ${exampleRequests.map((request) => `<button class="quick-chip" type="button" data-empty-request="${escapeHtml(request)}">${escapeHtml(request)}</button>`).join('')}
+      </div>
     </div>
   `;
 
@@ -390,7 +486,7 @@ function renderWorkspace() {
         <button type="button" data-task-status="done" data-task-id="${escapeHtml(task.id)}">${statusCopy.done}</button>
       </div>
     </div>
-  `).join('') : '<div class="empty-state"><strong>Задач пока нет</strong><p>Создайте первую задачу или запустите поручение помощнику.</p></div>';
+  `).join('') : '<div class="empty-state"><strong>Задач пока нет</strong><p>Задачи нужны для ручных следующих шагов. Если нужен готовый результат, запускайте поручение.</p><div class="empty-actions"><button class="quick-chip" type="button" data-empty-task>Добавить задачу</button><button class="quick-chip" type="button" data-empty-mission>Запустить поручение</button></div></div>';
 
   el.missionList.innerHTML = (workspace.missions || []).length ? (workspace.missions || []).map((mission) => `
     <div class="mission-item">
@@ -411,7 +507,7 @@ function renderWorkspace() {
         `).join('')}
       </div>
     </div>
-  `).join('') : '<div class="empty-state"><strong>Поручений пока нет</strong><p>Нажмите “Новое поручение”, чтобы помощник составил план и подготовил результат.</p></div>';
+  `).join('') : '<div class="empty-state"><strong>Поручений пока нет</strong><p>Поручение - это автономная работа помощника: цель, план, прогресс и результат.</p><div class="empty-actions"><button class="quick-chip" type="button" data-empty-mission>Запустить поручение</button></div></div>';
 
   el.artifactList.innerHTML = (workspace.artifacts || []).length ? (workspace.artifacts || []).map((artifact) => `
     <article class="artifact-item">
@@ -427,7 +523,7 @@ function renderWorkspace() {
         <button type="button" data-artifact-task="${escapeHtml(artifact.id)}">Создать задачу</button>
       </div>
     </article>
-  `).join('') : '<div class="empty-state"><strong>Готовых материалов пока нет</strong><p>Материалы появятся после выполнения поручений.</p></div>';
+  `).join('') : '<div class="empty-state"><strong>Готовых материалов пока нет</strong><p>Здесь будут черновики, ответы, изображения и результаты поручений, которые можно раскрыть и скопировать.</p><div class="empty-actions"><button class="quick-chip" type="button" data-empty-mission>Создать первый материал</button></div></div>';
 
   const workflow = [
     { label: 'Как работает помощник', value: modeLabel(workspace.mode) },
@@ -917,6 +1013,48 @@ function bindEvents() {
     el.messageInput.focus();
   });
 
+  el.dashboard.addEventListener('click', (event) => {
+    const requestButton = event.target.closest('[data-empty-request]');
+    if (requestButton) {
+      el.messageInput.value = requestButton.dataset.emptyRequest || '';
+      state.currentView = 'chat';
+      renderViewState();
+      el.messageInput.focus();
+      return;
+    }
+
+    if (event.target.closest('[data-empty-task]')) {
+      openTaskPrompt();
+      return;
+    }
+
+    if (event.target.closest('[data-empty-mission]')) {
+      openMissionPrompt();
+      return;
+    }
+
+    const nextButton = event.target.closest('[data-next-view], [data-next-intent]');
+    if (!nextButton) return;
+    const nextView = nextButton.dataset.nextView;
+    const nextIntent = nextButton.dataset.nextIntent;
+    if (nextView) {
+      state.currentView = nextView;
+      renderViewState();
+      renderAuthState();
+      return;
+    }
+    if (nextIntent === 'mission') {
+      openMissionPrompt();
+      return;
+    }
+    if (nextIntent === 'example') {
+      el.messageInput.value = exampleRequests[0];
+      state.currentView = 'chat';
+      renderViewState();
+      el.messageInput.focus();
+    }
+  });
+
   el.composer.addEventListener('submit', async (event) => {
     event.preventDefault();
     const message = el.messageInput.value.trim();
@@ -971,27 +1109,11 @@ function bindEvents() {
   });
 
   el.newTaskBtn.addEventListener('click', () => {
-    el.promptTitle.textContent = 'Новая задача';
-    el.promptLabel.textContent = 'Что нужно не забыть?';
-    el.promptInput.placeholder = 'Например: ответить клиенту по доступам';
-    el.promptInput.value = '';
-    el.promptHelp.textContent = '';
-    el.promptSubmit.textContent = 'Добавить задачу';
-    state.pendingTask = true;
-    state.pendingMission = false;
-    el.promptModal.showModal();
+    openTaskPrompt();
   });
 
   el.newMissionBtn.addEventListener('click', () => {
-    el.promptTitle.textContent = 'Новое поручение помощнику';
-    el.promptLabel.textContent = 'Какой результат нужно подготовить?';
-    el.promptInput.placeholder = 'Например: разобрать тикет и подготовить черновик ответа';
-    el.promptInput.value = '';
-    el.promptHelp.textContent = 'Помощник сам составит план и положит результат в “Готовые материалы”.';
-    el.promptSubmit.textContent = 'Запустить поручение';
-    state.pendingTask = false;
-    state.pendingMission = true;
-    el.promptModal.showModal();
+    openMissionPrompt();
   });
 
   el.promptModal.addEventListener('close', async () => {

@@ -777,6 +777,33 @@ button, input, select {
   gap: 12px;
 }
 
+.next-step-card {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+  padding: 14px;
+  border: 1px solid rgba(20, 184, 166, 0.24);
+  border-radius: var(--radius-md);
+  background: rgba(20, 184, 166, 0.08);
+}
+
+.next-step-card strong {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.next-step-card p {
+  margin: 0;
+  color: var(--soft);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.next-step-action {
+  width: fit-content;
+  margin-top: 4px;
+}
+
 .workflow-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -852,6 +879,17 @@ button, input, select {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.5;
+}
+
+.empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.empty-actions .quick-chip {
+  text-align: left;
 }
 
 .task-item, .mission-item, .artifact-item {
