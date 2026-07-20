@@ -4,8 +4,8 @@ const TIME_ZONE = 'Europe/Moscow';
 const DEMO_MODE = new URLSearchParams(window.location.search).get('demo') === '1';
 
 const demoUsers = [
-  { id: 'support', name: 'Алина', title: 'Поддержка клиентов', password: 'Support#2026', agentId: 'support-agent' },
-  { id: 'sales', name: 'Дамир', title: 'Продажи', password: 'Sales#2026', agentId: 'sales-agent' }
+  { id: 'support', name: 'Алина', title: 'Поддержка клиентов', password: 'DemoSupport#2026', agentId: 'support-agent' },
+  { id: 'sales', name: 'Дамир', title: 'Продажи', password: 'DemoSales#2026', agentId: 'sales-agent' }
 ];
 
 const fallbackWorkspaces = {
@@ -686,14 +686,6 @@ async function detectBackend() {
 }
 
 async function loadUsers() {
-  if (state.apiAvailable) {
-    try {
-      state.users = await apiRequest('/api/users');
-      return;
-    } catch {
-      state.apiAvailable = false;
-    }
-  }
   state.users = demoUsers;
 }
 

@@ -9,6 +9,8 @@ const PORT = Number(process.env.PORT || 3000);
 const ROOT = __dirname;
 const STATE_DIR = path.join(ROOT, 'data');
 const SESSION_COOKIE = 'agenthub_session';
+const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30;
+const MAX_BODY_BYTES = Number(process.env.MAX_BODY_BYTES || 64 * 1024);
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '';
 const DATABASE_URL = process.env.DATABASE_URL || '';
 const WORKFLOW_PROVIDER = process.env.WORKFLOW_PROVIDER || 'openclaw';
@@ -26,9 +28,39 @@ if (!DATABASE_URL) {
 const pool = new Pool({ connectionString: DATABASE_URL });
 
 const seedUsers = [
-  { id: 'support', name: 'Алина', title: 'Поддержка клиентов', password: 'Support#2026', agentId: 'support-agent' },
-  { id: 'sales', name: 'Дамир', title: 'Продажи', password: 'Sales#2026', agentId: 'sales-agent' }
+  { id: 'support', name: 'Алина', title: 'Поддержка клиентов', password: process.env.SUPPORT_INITIAL_PASSWORD || '', agentId: 'support-agent' },
+  { id: 'sales', name: 'Дамир', title: 'Продажи', password: process.env.SALES_INITIAL_PASSWORD || '', agentId: 'sales-agent' }
 ];
+
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('base64url');
+  const hash = crypto.scryptSync(String(password), salt, 64).toString('base64url');
+  return 'scrypt$' + salt + '$' + hash;
+}
+
+function verifyPassword(password, stored) {
+  const value = String(stored || '');
+  if (value.startsWith('scrypt$')) {
+    const parts = value.split('$');
+    if (parts.length !== 3) return false;
+    const expected = Buffer.from(parts[2], 'base64url');
+    const actual = crypto.scryptSync(String(password), parts[1], expected.length);
+    return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+  }
+  return value === String(password || '');
+}
+
+function shouldUpgradePasswordHash(stored) {
+  return !String(stored || '').startsWith('scrypt$');
+}
+
+function hashSessionToken(token) {
+  return crypto.createHash('sha256').update(String(token)).digest('base64url');
+}
+
+function isSecureRequest(req) {
+  return req.headers['x-forwarded-proto'] === 'https' || Boolean(req.socket.encrypted);
+}
 
 function seedWorkspace(userName, mode, quickActions, tasks, messages, missions, artifacts) {
   return {
@@ -151,18 +183,16 @@ async function initDb() {
   `);
 
   for (const user of seedUsers) {
+    const passwordHash = hashPassword(user.password || crypto.randomBytes(32).toString('base64url'));
     await pool.query(`
       INSERT INTO users (id, name, title, password, agent_id)
       VALUES ($1, $2, $3, $4, $5)
       ON CONFLICT (id) DO UPDATE
       SET name = EXCLUDED.name,
           title = EXCLUDED.title,
-          password = EXCLUDED.password,
           agent_id = EXCLUDED.agent_id
-    `, [user.id, user.name, user.title, user.password, user.agentId]);
+    `, [user.id, user.name, user.title, passwordHash, user.agentId]);
   }
-
-  await pool.query("DELETE FROM users WHERE id IN ('sergey', 'marina')");
 
   for (const workspace of seedWorkspaces) {
     await pool.query(`
@@ -189,8 +219,8 @@ async function initDb() {
     ]);
   }
 
-  await pool.query("UPDATE workspaces SET model = 'Рабочий агент' WHERE model IS DISTINCT FROM 'Рабочий агент'");
-  await pool.query('UPDATE workspaces SET quick_actions = $1 WHERE id = $2', [
+  await pool.query("UPDATE workspaces SET model = 'Рабочий агент' WHERE model IS NULL OR model = ''");
+  await pool.query('UPDATE workspaces SET quick_actions = $1 WHERE id = $2 AND jsonb_array_length(quick_actions) = 0', [
     JSON.stringify([
       'Найди свежую информацию в интернете',
       'Сгенерируй изображение для ответа',
@@ -199,7 +229,7 @@ async function initDb() {
     ]),
     'support-agent'
   ]);
-  await pool.query('UPDATE workspaces SET quick_actions = $1 WHERE id = $2', [
+  await pool.query('UPDATE workspaces SET quick_actions = $1 WHERE id = $2 AND jsonb_array_length(quick_actions) = 0', [
     JSON.stringify([
       'Найди свежую информацию в интернете',
       'Сгенерируй изображение для клиента',
@@ -241,13 +271,21 @@ function sendJson(res, statusCode, payload) {
   res.end(JSON.stringify(payload));
 }
 
+function sendError(res, fallbackStatus, fallbackCode, error) {
+  if (error && error.statusCode) {
+    sendJson(res, error.statusCode, { error: error.message || fallbackCode });
+    return;
+  }
+  sendJson(res, fallbackStatus, { error: fallbackCode });
+}
+
 function asyncHandler(req, res, handler) {
   Promise.resolve()
     .then(handler)
     .catch((error) => {
       console.error('Unhandled route error:', error);
       if (!res.headersSent && !res.writableEnded) {
-        sendJson(res, 500, { error: 'server_error' });
+        sendError(res, 500, 'server_error', error);
       } else if (!res.writableEnded) {
         res.end();
       }
@@ -257,8 +295,22 @@ function asyncHandler(req, res, handler) {
 function readBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
-    req.on('data', (chunk) => chunks.push(chunk));
+    let total = 0;
+    let failed = false;
+    req.on('data', (chunk) => {
+      if (failed) return;
+      total += chunk.length;
+      if (total > MAX_BODY_BYTES) {
+        failed = true;
+        const error = new Error('request_body_too_large');
+        error.statusCode = 413;
+        reject(error);
+        return;
+      }
+      chunks.push(chunk);
+    });
     req.on('end', () => {
+      if (failed) return;
       if (!chunks.length) return resolve({});
       try {
         resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));
@@ -376,23 +428,26 @@ function getGatewayModelForWorkspace(workspaceId) {
   return mapping[workspaceId] || 'openclaw/default';
 }
 
-async function createSession(userId, res) {
+async function createSession(userId, req, res) {
   const token = crypto.randomUUID();
-  const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30);
-  await pool.query('INSERT INTO sessions (token, user_id, expires_at) VALUES ($1, $2, $3)', [token, userId, expiresAt]);
+  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+  await pool.query('DELETE FROM sessions WHERE expires_at <= now()');
+  await pool.query('INSERT INTO sessions (token, user_id, expires_at) VALUES ($1, $2, $3)', [hashSessionToken(token), userId, expiresAt]);
   const cookieParts = [
     SESSION_COOKIE + '=' + token,
     'HttpOnly',
     'Path=/',
+    'Max-Age=' + Math.floor(SESSION_TTL_MS / 1000),
     'SameSite=Lax'
   ];
+  if (isSecureRequest(req)) cookieParts.push('Secure');
   res.setHeader('Set-Cookie', cookieParts.join('; '));
 }
 
 async function destroySession(req, res) {
   const cookies = parseCookies(req);
   const token = cookies[SESSION_COOKIE];
-  if (token) await pool.query('DELETE FROM sessions WHERE token = $1', [token]);
+  if (token) await pool.query('DELETE FROM sessions WHERE token = $1', [hashSessionToken(token)]);
   res.setHeader('Set-Cookie', SESSION_COOKIE + '=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax');
 }
 
@@ -406,7 +461,7 @@ async function getSessionUser(req) {
     JOIN users u ON u.id = s.user_id
     WHERE s.token = $1 AND s.expires_at > now()
     LIMIT 1
-  `, [token]);
+  `, [hashSessionToken(token)]);
   return result.rows[0] || null;
 }
 
@@ -789,7 +844,7 @@ async function handleMission(req, res) {
     sendJson(res, 200, { workspace: ctx.workspace, mission: result.mission, artifact: result.artifact });
   } catch (error) {
     console.error('Failed to handle /api/missions:', error);
-    sendJson(res, 500, { error: 'mission_failed' });
+    sendError(res, 500, 'mission_failed', error);
   }
 }
 
@@ -811,7 +866,7 @@ async function handleAgentSettings(req, res) {
     sendJson(res, 200, { workspace: ctx.workspace });
   } catch (error) {
     console.error('Failed to handle /api/agent-settings:', error);
-    sendJson(res, 500, { error: 'agent_settings_failed' });
+    sendError(res, 500, 'agent_settings_failed', error);
   }
 }
 
@@ -833,18 +888,21 @@ async function handleLogin(req, res) {
     const body = await readBody(req);
     const user = await getUserByLogin(body.login);
     const password = String(body.password || '');
-    if (!user || user.password !== password) {
+    if (!user || !verifyPassword(password, user.password)) {
       sendJson(res, 401, { error: 'invalid_credentials' });
       return;
     }
-    await createSession(user.id, res);
+    if (shouldUpgradePasswordHash(user.password)) {
+      await pool.query('UPDATE users SET password = $1 WHERE id = $2', [hashPassword(password), user.id]);
+    }
+    await createSession(user.id, req, res);
     const workspace = await getWorkspaceByAgentId(user.agent_id);
     sendJson(res, 200, {
       user: { id: user.id, name: user.name, title: user.title, agentId: user.agent_id },
       workspace: rowToWorkspace(workspace)
     });
-  } catch {
-    sendJson(res, 400, { error: 'invalid_json' });
+  } catch (error) {
+    sendError(res, 400, 'invalid_json', error);
   }
 }
 
@@ -875,7 +933,7 @@ async function handleMessage(req, res) {
     sendJson(res, 200, { workspace: ctx.workspace, reply: reply });
   } catch (error) {
     console.error('Failed to handle /api/message:', error);
-    sendJson(res, 500, { error: 'message_failed' });
+    sendError(res, 500, 'message_failed', error);
   }
 }
 
@@ -893,8 +951,8 @@ async function handleMode(req, res) {
     ctx.workspace.mode = mode;
     await saveWorkspace(ctx.workspace);
     sendJson(res, 200, { workspace: ctx.workspace });
-  } catch {
-    sendJson(res, 400, { error: 'invalid_json' });
+  } catch (error) {
+    sendError(res, 400, 'invalid_json', error);
   }
 }
 
@@ -933,13 +991,18 @@ async function handleTasks(req, res, taskId) {
       return;
     }
     sendJson(res, 405, { error: 'method_not_allowed' });
-  } catch {
-    sendJson(res, 400, { error: 'invalid_json' });
+  } catch (error) {
+    sendError(res, 400, 'invalid_json', error);
   }
 }
 
 function serveStatic(res, pathname) {
   const targetPath = pathname === '/' ? '/index.html' : pathname;
+  const publicFiles = new Set(['/index.html', '/app.js', '/styles.css', '/.nojekyll']);
+  if (!publicFiles.has(targetPath)) {
+    sendJson(res, 404, { error: 'not_found' });
+    return;
+  }
   const filePath = safeJoin(ROOT, targetPath);
   if (!filePath.startsWith(ROOT) || !fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
     sendJson(res, 404, { error: 'not_found' });
@@ -965,6 +1028,8 @@ async function main() {
     if (pathname === '/api/health' && req.method === 'GET') return sendJson(res, 200, { ok: true });
     if (pathname === '/api/users' && req.method === 'GET') {
       asyncHandler(req, res, async () => {
+        const ctx = await getAuthenticatedContext(req, res);
+        if (!ctx) return;
         const result = await pool.query('SELECT id, name, title, agent_id FROM users ORDER BY id');
         sendJson(res, 200, result.rows.map((row) => ({ id: row.id, name: row.name, title: row.title, agentId: row.agent_id })) );
       });

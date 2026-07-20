@@ -11,9 +11,13 @@ Included:
 - frontend served from the same VPS through nginx
 - per-agent files live in agents/<user>/
 
-Employee credentials:
-- support / Support#2026
-- sales / Sales#2026
+Employee accounts:
+- support / Алина
+- sales / Дамир
+
+Initial passwords are not stored in the repository. For a fresh environment, set
+`SUPPORT_INITIAL_PASSWORD` and `SALES_INITIAL_PASSWORD` before the first backend
+startup. Existing user passwords are never overwritten during startup.
 
 Deployment model:
 - web container: nginx + static frontend
@@ -31,6 +35,9 @@ Optional environment variables:
 - OPENCLAW_GATEWAY_URL
 - OPENCLAW_GATEWAY_TOKEN
 - OPENCLAW_GATEWAY_PASSWORD
+- SUPPORT_INITIAL_PASSWORD
+- SALES_INITIAL_PASSWORD
+- MAX_BODY_BYTES
 
 Run locally:
 - docker compose up --build
