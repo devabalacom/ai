@@ -267,6 +267,32 @@ function agentDisplayName(workspace) {
   return workspace?.agentConfig?.name || (workspace ? 'Агент ' + workspace.name : 'Агент');
 }
 
+function artifactFileName(artifact) {
+  return artifact?.downloadName || (String(artifact?.title || 'agenthub-file').replace(/[^a-zA-Z0-9а-яА-Я_-]+/g, '-').replace(/^-|-$/g, '').slice(0, 64) || 'agenthub-file') + (artifact?.type === 'image' ? '.svg' : '.txt');
+}
+
+function artifactMimeType(artifact) {
+  return artifact?.mimeType || (artifact?.type === 'image' ? 'image/svg+xml' : 'text/plain;charset=utf-8');
+}
+
+function artifactDataUrl(artifact) {
+  if (!artifact?.content) return '';
+  return 'data:' + artifactMimeType(artifact) + ',' + encodeURIComponent(artifact.content);
+}
+
+function renderArtifactAttachment(artifact) {
+  if (!artifact) return '';
+  const preview = artifact.type === 'image' && artifact.content
+    ? '<img src="' + artifactDataUrl(artifact) + '" alt="' + escapeHtml(artifact.title) + '">'
+    : '<pre>' + escapeHtml(artifact.content || artifact.summary || '') + '</pre>';
+  return '<div class="message-attachment">' +
+    '<div class="artifact-meta"><span>' + escapeHtml(artifactTypeLabel(artifact.type)) + '</span></div>' +
+    '<strong>' + escapeHtml(artifact.title) + '</strong>' +
+    preview +
+    '<button class="ghost-btn" type="button" data-artifact-download="' + escapeHtml(artifact.id) + '">Скачать файл</button>' +
+    '</div>';
+}
+
 function quickActionLabel(text) {
   const value = String(text || '');
   return quickActionLabels.find((item) => item.pattern.test(value))?.label || value;
@@ -453,6 +479,7 @@ function renderWorkspace() {
         <span>${escapeHtml(message.time)}</span>
       </div>
       <div>${escapeHtml(message.text)}</div>
+      ${renderArtifactAttachment(findArtifact(workspace, message.artifactId))}
     </article>
   `}).join('') : `
     <div class="empty-state">
@@ -532,6 +559,7 @@ function renderWorkspace() {
         <pre>${escapeHtml(artifact.content)}</pre>
       </details>
       <div class="artifact-actions">
+        <button type="button" data-artifact-download="${escapeHtml(artifact.id)}">Скачать файл</button>
         <button type="button" data-artifact-copy="${escapeHtml(artifact.id)}">Скопировать</button>
         <button type="button" data-artifact-task="${escapeHtml(artifact.id)}">Создать задачу</button>
       </div>
@@ -582,8 +610,8 @@ function configureDemoMode() {
   });
 }
 
-function addLocalMessage(workspace, role, text, author) {
-  const message = { id: newId(), role, author, time: now(), text };
+function addLocalMessage(workspace, role, text, author, extra = {}) {
+  const message = { id: newId(), role, author, time: now(), text, ...extra };
   workspace.messages.push(message);
   workspace.messages = workspace.messages.slice(-50);
   return message;
@@ -630,6 +658,31 @@ function startLocalMission(workspace, goal) {
   return result;
 }
 
+function buildLocalImageArtifact(workspace, prompt) {
+  const safePrompt = String(prompt || '').trim() || 'Рабочее изображение';
+  const title = 'Изображение: ' + safePrompt.slice(0, 48);
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720">' +
+    '<rect width="1200" height="720" fill="#07101b"/>' +
+    '<rect x="72" y="72" width="1056" height="576" rx="28" fill="#101826" stroke="#38bdf8" stroke-width="3"/>' +
+    '<circle cx="998" cy="168" r="72" fill="#f59e0b" opacity="0.9"/>' +
+    '<path d="M132 504 C296 392 384 440 520 336 C696 202 804 248 1068 168" fill="none" stroke="#38bdf8" stroke-width="18" stroke-linecap="round" opacity="0.85"/>' +
+    '<text x="132" y="172" fill="#e6edf7" font-family="Arial, sans-serif" font-size="48" font-weight="700">AgentHub image</text>' +
+    '<text x="132" y="246" fill="#cbd8e8" font-family="Arial, sans-serif" font-size="28">' + escapeHtml(safePrompt.slice(0, 82)) + '</text>' +
+    '<text x="132" y="586" fill="#a0b5cc" font-family="Arial, sans-serif" font-size="24">Generated workspace artifact</text>' +
+    '</svg>';
+  const artifact = {
+    id: newId(),
+    title: title,
+    type: 'image',
+    summary: 'SVG-изображение, сгенерированное агентом по запросу сотрудника.',
+    content: svg,
+    mimeType: 'image/svg+xml',
+    downloadName: artifactFileName({ title, type: 'image' })
+  };
+  workspace.artifacts = [artifact, ...(workspace.artifacts || [])].slice(0, 8);
+  return artifact;
+}
+
 function generateReply(workspace, message) {
   const lower = message.toLowerCase();
 
@@ -648,7 +701,11 @@ function generateReply(workspace, message) {
   }
 
   if (/картин|изображ|иллюстрац|image|generate image|сгенер/.test(lower)) {
-    return 'Принял. У этого агента включена генерация изображений: подготовлю промпт, стиль и результат как готовый материал.';
+    const artifact = buildLocalImageArtifact(workspace, message);
+    return {
+      text: 'Сгенерировал файл и прикрепил его в чат: ' + artifact.title + '. Его также можно найти в “Готовых материалах”.',
+      artifact: artifact
+    };
   }
 
   if (/прайс|цена|документ|найди|поиск|интернет|web|сайт/.test(lower)) {
@@ -816,9 +873,10 @@ async function sendMessage(text) {
       showTypingIndicator();
       // Simulate API delay for better UX
       await new Promise(resolve => setTimeout(resolve, 800));
-      const reply = generateReply(workspace, safeText);
+      const generated = generateReply(workspace, safeText);
+      const reply = typeof generated === 'string' ? generated : generated.text;
       hideTypingIndicator();
-      addLocalMessage(workspace, 'agent', reply, agentDisplayName(workspace));
+      addLocalMessage(workspace, 'agent', reply, agentDisplayName(workspace), generated.artifact ? { artifactId: generated.artifact.id } : {});
       state.workspace = workspace;
       persistLocal();
     }
@@ -937,6 +995,19 @@ async function copyArtifact(artifact) {
   window.prompt('Скопируйте текст', text);
 }
 
+function downloadArtifact(artifact) {
+  if (!artifact) return;
+  const blob = new Blob([artifact.content || artifact.summary || artifact.title || ''], { type: artifactMimeType(artifact) });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = artifactFileName(artifact);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 async function setTaskStatus(taskId, status) {
   if (!state.currentUser) return;
   if (state.apiAvailable) {
@@ -1025,6 +1096,13 @@ function bindEvents() {
   });
 
   el.dashboard.addEventListener('click', (event) => {
+    const downloadButton = event.target.closest('[data-artifact-download]');
+    if (downloadButton) {
+      const workspace = currentWorkspace();
+      if (workspace) downloadArtifact(findArtifact(workspace, downloadButton.dataset.artifactDownload));
+      return;
+    }
+
     const requestButton = event.target.closest('[data-empty-request]');
     if (requestButton) {
       el.messageInput.value = requestButton.dataset.emptyRequest || '';

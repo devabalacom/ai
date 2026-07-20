@@ -728,6 +728,39 @@ button, input, select {
   border-color: rgba(20, 184, 166, 0.28);
 }
 
+.message-attachment {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.message-attachment img {
+  width: min(100%, 420px);
+  max-height: 240px;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.message-attachment pre {
+  max-height: 180px;
+  margin: 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--soft);
+  font-family: "Monaco", "Courier New", monospace;
+  font-size: 12px;
+}
+
+.message-attachment .ghost-btn {
+  width: fit-content;
+}
+
 .message-meta {
   color: var(--muted);
   font-size: 12px;

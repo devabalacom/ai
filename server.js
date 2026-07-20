@@ -492,13 +492,14 @@ function addTask(workspace, title, details) {
   workspace.tasks = workspace.tasks.slice(0, 12);
 }
 
-function addMessage(workspace, role, text, author) {
+function addMessage(workspace, role, text, author, extra = {}) {
   workspace.messages.push({
     id: crypto.randomUUID(),
     role: role,
     author: author,
     time: now(),
-    text: text
+    text: text,
+    ...extra
   });
   workspace.messages = workspace.messages.slice(-50);
 }
@@ -654,7 +655,9 @@ function buildImageArtifact(workspace, prompt) {
     title: title,
     type: 'image',
     summary: 'SVG-изображение, сгенерированное агентом по запросу сотрудника.',
-    content: svg
+    content: svg,
+    mimeType: 'image/svg+xml',
+    downloadName: title.replace(/[^a-zA-Z0-9а-яА-Я_-]+/g, '-').replace(/^-|-$/g, '').slice(0, 64) + '.svg'
   };
   workspace.artifacts = [artifact, ...(workspace.artifacts || [])].slice(0, 8);
   return artifact;
@@ -808,13 +811,16 @@ async function askOpenClawGateway(workspace, userText, agentFiles) {
 
 async function answerWorkspaceMessage(workspace, userText, agentFiles) {
   const intent = extractIntent(userText);
-  if (intent === 'search') return buildSearchReply(userText);
+  if (intent === 'search') return { text: await buildSearchReply(userText) };
   if (intent === 'image') {
     const artifact = buildImageArtifact(workspace, userText);
-    return 'Сгенерировал изображение и положил его в “Готовые материалы”: ' + artifact.title + '.';
+    return {
+      text: 'Сгенерировал файл и прикрепил его в чат: ' + artifact.title + '. Его также можно найти в “Готовых материалах”.',
+      artifact: artifact
+    };
   }
   const reply = await askOpenClawGateway(workspace, userText, agentFiles);
-  return reply || generateWorkflowReply(workspace, userText, agentFiles);
+  return { text: reply || generateWorkflowReply(workspace, userText, agentFiles) };
 }
 
 function tryWorkflowAction(workspace, text, reply) {
@@ -923,9 +929,10 @@ async function handleMessage(req, res) {
     }
     addMessage(ctx.workspace, 'user', text, ctx.user.name);
     const agentFiles = getAgentFiles(ctx.workspace.id);
-    const reply = await answerWorkspaceMessage(ctx.workspace, text, agentFiles);
+    const answer = await answerWorkspaceMessage(ctx.workspace, text, agentFiles);
+    const reply = answer.text;
     tryWorkflowAction(ctx.workspace, text, reply);
-    addMessage(ctx.workspace, 'agent', reply, getAgentDisplayName(ctx.workspace));
+    addMessage(ctx.workspace, 'agent', reply, getAgentDisplayName(ctx.workspace), answer.artifact ? { artifactId: answer.artifact.id } : {});
     ctx.workspace.model = WORKFLOW_PROVIDER === 'openclaw'
       ? getGatewayModelForWorkspace(ctx.workspace.id)
       : ctx.workspace.model;
