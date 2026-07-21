@@ -672,7 +672,7 @@ function buildMissionFromGoal(goal) {
   const events = [
     { time: now(), title: 'Поручение принято', text: safeGoal },
     { time: now(), title: 'План создан', text: steps.map((step, index) => (index + 1) + '. ' + step.title).join('\n') },
-    { time: now(), title: 'Материал подготовлен', text: 'Черновик результата сохранен в разделе готовых материалов.' }
+    { time: now(), title: 'План создан', text: 'Backend начинает выполнение tool-шагов.' }
   ];
   return {
     mission: {
@@ -692,10 +692,8 @@ function buildMissionFromGoal(goal) {
       id: artifactId,
       title: 'Рабочий результат: ' + safeGoal.slice(0, 48),
       type: 'mission',
-      summary: status === 'done'
-        ? 'Готовый результат автономного поручения.'
-        : 'Черновик результата и план автономного выполнения. Часть tool-шагов ждет подключения worker-движка.',
-      content: 'Цель: ' + safeGoal + '\n\nПлан выполнения:\n' + steps.map((step, index) => (index + 1) + '. [' + (step.status || 'todo') + '] ' + step.title + ' — ' + (step.detail || '')).join('\n') + '\n\nИтог v1:\nАгент создал структуру автономного запуска, план, статусы шагов и рабочий материал. Для задач с внешним поиском, файлами или изображениями следующие версии должны передавать queued tool-шаги отдельным worker-исполнителям.'
+      summary: 'Стартовый материал поручения. Итог будет записан после выполнения backend tool-шагов.',
+      content: 'Цель: ' + safeGoal + '\n\nПлан выполнения:\n' + steps.map((step, index) => (index + 1) + '. [' + (step.status || 'todo') + '] ' + step.title + ' — ' + (step.detail || '')).join('\n') + '\n\nИтог еще не создан: backend только начал выполнение поручения.'
     }
   };
 }
@@ -1040,59 +1038,6 @@ function buildOpenClawPrompt(workspace, agentFiles, userText) {
 function getAgentDisplayName(workspace) {
   const agentConfig = workspace.agentConfig || {};
   return agentConfig.name || ('Агент ' + workspace.name);
-}
-
-function generateWorkflowReply(workspace, message, agentFiles) {
-  const intent = extractIntent(message);
-  const agentTone = agentFiles.soul
-    ? 'Под капотом работает персональный рабочий агент.'
-    : 'Под капотом работает персональный агент.';
-
-  if (intent === 'task') {
-    const title = String(message).replace(/создай|сделай|задачу|task/gi, '').trim() || 'Новая задача';
-    if (workspace.mode === 'execute' && !workspace.tasks.some((task) => task.title.toLowerCase() === title.toLowerCase())) {
-      addTask(workspace, title, 'Создано из чата рабочего агента.');
-    }
-    if (workspace.mode === 'execute') return 'Готово: задача «' + title + '» добавлена. ' + agentTone;
-    if (workspace.mode === 'approve') return 'Могу добавить задачу «' + title + '». Подтверди, если ок. ' + agentTone;
-    return 'Могу оформить задачу «' + title + '» и добавить её в твое рабочее пространство. ' + agentTone;
-  }
-
-  if (intent === 'mission') {
-    const goal = String(message).replace(/создай|запусти|поручение|поручений|миссию|mission|план|агента|manus/gi, '').trim() || message;
-    if (workspace.mode !== 'execute') {
-      if (workspace.mode === 'approve') return 'Могу запустить поручение «' + goal + '». Подтверди, если ок. ' + agentTone;
-      return 'Могу оформить поручение «' + goal + '» с планом и готовым материалом. ' + agentTone;
-    }
-    return 'Запускаю поручение «' + goal + '»: составлю план, выполню доступные tool-шаги и сохраню результат в материалах. ' + agentTone;
-  }
-
-  if (intent === 'search') {
-    return 'Понял. У агента включен поиск в интернете: сначала проверю свежую информацию, потом верну короткий вывод и источники.';
-  }
-
-  if (intent === 'image') {
-    return 'Принял. У этого агента включена генерация изображений: подготовлю промпт, стиль и результат как готовый материал.';
-  }
-
-  if (intent === 'status') {
-    return 'Вижу текущий статус: ' + workspace.tasks.filter((task) => task.status !== 'done').length + ' открытых задач и ' + workspace.messages.length + ' сообщений в истории.';
-  }
-
-  if (intent === 'greeting') {
-    if (workspace.mode === 'answer') return 'На связи. Пиши вопрос, задачу или короткую команду.';
-    return 'Готов. Могу предложить шаги, оформить задачу или выполнить безопасный сценарий.';
-  }
-
-  if (workspace.mode === 'suggest') {
-    return 'Сначала соберу контекст, потом предложу черновик и только затем действие.';
-  }
-
-  if (workspace.mode === 'execute') {
-    return 'Выполняю безопасный сценарий и фиксирую результат в личном пространстве.';
-  }
-
-  return safeFallbackReply(workspace, intent);
 }
 
 function safeFallbackReply(workspace, intent) {

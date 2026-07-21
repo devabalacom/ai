@@ -809,12 +809,12 @@ function buildLocalMission(goal) {
       ? { title: 'Собрать внешнюю информацию', status: 'queued', tool: 'web', detail: 'Нужен реальный web/browser worker.' }
       : { title: 'Проверить внутренний контекст', status: 'done', tool: 'planner', detail: 'Для первого черновика достаточно данных из запроса.' },
     needsFile
-      ? { title: 'Подготовить файл или таблицу', status: 'queued', tool: 'files', detail: 'Нужен файловый worker.' }
-      : { title: 'Собрать текстовый результат', status: 'done', tool: 'artifact', detail: 'Агент подготовил структурированный черновик.' },
-    { title: 'Передать итог сотруднику', status: needsWeb || needsFile || needsImage ? 'running' : 'done', tool: 'artifact', detail: 'Результат сохранен в готовых материалах.' }
+      ? { title: 'Подготовить файл или таблицу', status: 'queued', tool: 'files', detail: 'Нужен рабочий backend.' }
+      : { title: 'Собрать текстовый результат', status: 'queued', tool: 'artifact', detail: 'Нужен рабочий backend и модель агента.' },
+    { title: 'Передать итог сотруднику', status: 'queued', tool: 'artifact', detail: 'Offline-режим не создает готовый результат.' }
   ];
   const progress = Math.round((steps.filter((step) => step.status === 'done').length / steps.length) * 100);
-  const status = progress === 100 ? 'done' : 'running';
+  const status = 'queued';
   return {
     mission: {
       id: newId(),
@@ -827,9 +827,9 @@ function buildLocalMission(goal) {
       events: [
         { time: now(), title: 'Поручение принято', text: safeGoal },
         { time: now(), title: 'План создан', text: steps.map((step, index) => (index + 1) + '. ' + step.title).join('\n') },
-        { time: now(), title: 'Материал подготовлен', text: 'Черновик результата сохранен в разделе готовых материалов.' }
+        { time: now(), title: 'Ожидает backend', text: 'Offline-режим показывает план, но не выполняет поручение и не создает итоговый материал.' }
       ],
-      output: 'Готовый материал: ' + artifactId,
+      output: 'Ожидает подключения backend',
       artifactId: artifactId,
       createdAt: now()
     },
@@ -837,8 +837,8 @@ function buildLocalMission(goal) {
       id: artifactId,
       title: 'Рабочий результат: ' + safeGoal.slice(0, 48),
       type: 'mission',
-      summary: status === 'done' ? 'Готовый результат автономного поручения.' : 'Черновик результата и план автономного выполнения.',
-      content: 'Цель: ' + safeGoal + '\n\nПлан выполнения:\n' + steps.map((step, index) => (index + 1) + '. [' + (step.status || 'todo') + '] ' + step.title + ' — ' + (step.detail || '')).join('\n') + '\n\nИтог v1:\nАгент создал структуру автономного запуска, план, статусы шагов и рабочий материал.'
+      summary: 'Offline-план без выполнения. Для результата нужен рабочий backend и модель агента.',
+      content: 'Цель: ' + safeGoal + '\n\nПлан выполнения:\n' + steps.map((step, index) => (index + 1) + '. [' + (step.status || 'todo') + '] ' + step.title + ' — ' + (step.detail || '')).join('\n') + '\n\nИтог не создан: offline-режим не выполняет поручения и не обращается к модели агента.'
     }
   };
 }
@@ -1167,7 +1167,7 @@ async function createMission(goal) {
   } else {
     const workspace = currentWorkspace();
     const result = startLocalMission(workspace, safeGoal);
-    addLocalMessage(workspace, 'agent', `Запустил поручение: «${result.mission.goal}». План и материал уже доступны справа.`, agentDisplayName(workspace));
+    addLocalMessage(workspace, 'agent', `Backend недоступен, поэтому поручение «${result.mission.goal}» не выполнено. План сохранен как offline-черновик.`, agentDisplayName(workspace));
     state.workspace = workspace;
     persistLocal();
   }
