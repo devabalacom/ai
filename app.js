@@ -71,7 +71,10 @@ const statusCopy = {
   waiting: 'Ждет ответа',
   done: 'Готово',
   blocked: 'Есть проблема',
-  running: 'В работе'
+  running: 'В работе',
+  queued: 'В очереди',
+  failed: 'Ошибка',
+  cancelled: 'Отменено'
 };
 
 const agentTools = [
@@ -155,6 +158,7 @@ const el = {
   promptTitle: document.getElementById('prompt-title'),
   promptLabel: document.getElementById('prompt-label'),
   promptInput: document.getElementById('prompt-input'),
+  promptTextarea: document.getElementById('prompt-textarea'),
   promptHelp: document.getElementById('prompt-help'),
   promptSubmit: document.getElementById('prompt-submit'),
   promptCancel: document.getElementById('prompt-cancel')
@@ -295,6 +299,38 @@ function missionProgress(mission) {
   return Math.max(0, Math.min(100, value));
 }
 
+function missionToolLabel(toolId) {
+  const labels = {
+    planner: 'План',
+    web: 'Web',
+    files: 'Файлы',
+    image: 'Изображения',
+    artifact: 'Материал'
+  };
+  return labels[toolId] || toolId || 'Шаг';
+}
+
+function setPromptField(multiline) {
+  el.promptInput.classList.toggle('hidden', multiline);
+  el.promptInput.required = !multiline;
+  el.promptTextarea.classList.toggle('hidden', !multiline);
+  el.promptTextarea.required = multiline;
+}
+
+function renderMissionHandoff(workspace, mission) {
+  const artifact = findArtifact(workspace, mission.artifactId);
+  if (!artifact) return '';
+  return `
+    <div class="artifact-handoff">
+      <div>
+        <span>Готовый материал</span>
+        <strong>${escapeHtml(artifact.title)}</strong>
+      </div>
+      <button type="button" data-artifact-download="${escapeHtml(artifact.id)}">Скачать</button>
+    </div>
+  `;
+}
+
 function modeLabel(mode) {
   return modeCopy[mode]?.label || mode;
 }
@@ -414,8 +450,9 @@ function renderNextStep(workspace) {
 function openMissionPrompt() {
   el.promptTitle.textContent = 'Новое поручение помощнику';
   el.promptLabel.textContent = 'Какой результат нужно подготовить?';
-  el.promptInput.placeholder = 'Например: разобрать тикет и подготовить черновик ответа';
-  el.promptInput.value = '';
+  setPromptField(true);
+  el.promptTextarea.placeholder = 'Опишите цель, формат результата, ограничения и что считать готовым';
+  el.promptTextarea.value = '';
   el.promptHelp.textContent = 'Поручение подходит для работы с результатом: план, анализ, черновик, поиск или материал.';
   el.promptSubmit.textContent = 'Запустить поручение';
   state.pendingTask = false;
@@ -426,6 +463,7 @@ function openMissionPrompt() {
 function openTaskPrompt() {
   el.promptTitle.textContent = 'Новая задача';
   el.promptLabel.textContent = 'Что нужно не забыть?';
+  setPromptField(false);
   el.promptInput.placeholder = 'Например: ответить клиенту по доступам';
   el.promptInput.value = '';
   el.promptHelp.textContent = 'Задача - это напоминание или ручной следующий шаг. Для работы с результатом лучше поручение.';
@@ -438,6 +476,7 @@ function openTaskPrompt() {
 function openAgentPrompt() {
   el.promptTitle.textContent = 'Новый агент';
   el.promptLabel.textContent = 'Как назвать агента?';
+  setPromptField(false);
   el.promptInput.placeholder = 'Например: Агент по продажам';
   el.promptInput.value = '';
   el.promptHelp.textContent = 'После создания откроются настройки роли, правил и поведения агента.';
@@ -637,19 +676,41 @@ function renderWorkspace() {
       <div class="mission-top">
         <div>
           <div class="task-title">${escapeHtml(mission.goal)}</div>
-          <div class="panel-subtitle">Начато в ${escapeHtml(mission.createdAt || 'сейчас')} · ${escapeHtml(statusCopy[mission.status] || mission.status)}</div>
+          <div class="panel-subtitle">Run ${escapeHtml(String(mission.runId || mission.id || '').slice(0, 8))} · ${escapeHtml(mission.createdAt || 'сейчас')} · ${escapeHtml(statusCopy[mission.status] || mission.status)}</div>
         </div>
         ${statusBadge(mission.status)}
       </div>
       <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${missionProgress(mission)}" aria-label="Прогресс поручения: ${missionProgress(mission)}%"><span style="width: ${missionProgress(mission)}%"></span></div>
+      <div class="mission-tools" aria-label="Инструменты поручения">
+        ${(mission.tools || []).map((tool) => `
+          <span class="mission-tool ${escapeHtml(tool.status || 'queued')}">${escapeHtml(tool.label || missionToolLabel(tool.id))} · ${escapeHtml(statusCopy[tool.status] || tool.status || 'В очереди')}</span>
+        `).join('')}
+      </div>
       <div class="mission-steps">
         ${(mission.steps || []).map((step) => `
           <div class="mission-step ${escapeHtml(step.status)}">
             <span></span>
-            <p><span class="sr-only">${escapeHtml(statusCopy[step.status] || step.status)}: </span>${escapeHtml(step.title)}</p>
+            <p>
+              <span class="sr-only">${escapeHtml(statusCopy[step.status] || step.status)}: </span>
+              <strong>${escapeHtml(step.title)}</strong>
+              <small>${escapeHtml(missionToolLabel(step.tool))}${step.detail ? ' · ' + escapeHtml(step.detail) : ''}</small>
+            </p>
           </div>
         `).join('')}
       </div>
+      ${(mission.events || []).length ? `
+        <details class="mission-events">
+          <summary>Ход работы</summary>
+          ${mission.events.map((event) => `
+            <div class="mission-event">
+              <span>${escapeHtml(event.time || '')}</span>
+              <strong>${escapeHtml(event.title || 'Событие')}</strong>
+              <p>${escapeHtml(event.text || '')}</p>
+            </div>
+          `).join('')}
+        </details>
+      ` : ''}
+      ${renderMissionHandoff(workspace, mission)}
     </div>
   `).join('') : '<div class="empty-state"><strong>Поручений пока нет</strong><p>Поручение - это автономная работа помощника: цель, план, прогресс и результат.</p><div class="empty-actions"><button class="quick-chip" type="button" data-empty-mission>Запустить поручение</button></div></div>';
 
@@ -671,7 +732,7 @@ function renderWorkspace() {
     { label: 'Как работает помощник', value: modeLabel(workspace.mode) },
     { label: 'Поручения', value: String((workspace.missions || []).length) },
     { label: 'Открытые задачи', value: String(openTasks) },
-    { label: 'Готовые материалы', value: String(artifactCount) }
+    { label: 'Результаты', value: String(artifactCount) }
   ];
 
   el.workflowGrid.innerHTML = workflow.map((item) => `
@@ -726,19 +787,47 @@ function addLocalTask(workspace, title, details) {
 
 function buildLocalMission(goal) {
   const safeGoal = String(goal || '').trim() || 'Новое поручение помощнику';
+  const lower = safeGoal.toLowerCase();
   const artifactId = newId();
+  const runId = newId();
+  const needsWeb = /рынок|конкур|цена|сайт|найди|поиск|исслед|анализ|новост|интернет|web/.test(lower);
+  const needsFile = /таблиц|презентац|файл|документ|отчет|pdf|excel|csv/.test(lower);
+  const needsImage = isImageRequest(safeGoal);
+  const tools = [
+    { id: 'planner', label: 'Планировщик', status: 'done' },
+    ...(needsWeb ? [{ id: 'web', label: 'Поиск в интернете', status: 'queued' }] : []),
+    ...(needsFile ? [{ id: 'files', label: 'Файлы и материалы', status: 'queued' }] : []),
+    ...(needsImage ? [{ id: 'image', label: 'Генерация изображений', status: 'queued' }] : []),
+    { id: 'artifact', label: 'Готовый результат', status: 'done' }
+  ];
+  const steps = [
+    { title: 'Понять конечную цель и критерий готовности', status: 'done', tool: 'planner', detail: 'Агент выделил ожидаемый результат из запроса сотрудника.' },
+    { title: 'Составить рабочий план', status: 'done', tool: 'planner', detail: 'Задача разбита на этапы.' },
+    needsWeb
+      ? { title: 'Собрать внешнюю информацию', status: 'queued', tool: 'web', detail: 'Нужен реальный web/browser worker.' }
+      : { title: 'Проверить внутренний контекст', status: 'done', tool: 'planner', detail: 'Для первого черновика достаточно данных из запроса.' },
+    needsFile
+      ? { title: 'Подготовить файл или таблицу', status: 'queued', tool: 'files', detail: 'Нужен файловый worker.' }
+      : { title: 'Собрать текстовый результат', status: 'done', tool: 'artifact', detail: 'Агент подготовил структурированный черновик.' },
+    { title: 'Передать итог сотруднику', status: needsWeb || needsFile || needsImage ? 'running' : 'done', tool: 'artifact', detail: 'Результат сохранен в готовых материалах.' }
+  ];
+  const progress = Math.round((steps.filter((step) => step.status === 'done').length / steps.length) * 100);
+  const status = progress === 100 ? 'done' : 'running';
   return {
     mission: {
       id: newId(),
+      runId: runId,
       goal: safeGoal,
-      status: 'running',
-      progress: 75,
-      steps: [
-        { title: 'Понять цель и ожидаемый результат', status: 'done' },
-        { title: 'Разложить работу на шаги', status: 'done' },
-        { title: 'Собрать рабочий черновик', status: 'running' },
-        { title: 'Передать результат сотруднику', status: 'todo' }
+      status: status,
+      progress: progress,
+      tools: tools,
+      steps: steps,
+      events: [
+        { time: now(), title: 'Поручение принято', text: safeGoal },
+        { time: now(), title: 'План создан', text: steps.map((step, index) => (index + 1) + '. ' + step.title).join('\n') },
+        { time: now(), title: 'Материал подготовлен', text: 'Черновик результата сохранен в разделе готовых материалов.' }
       ],
+      output: 'Готовый материал: ' + artifactId,
       artifactId: artifactId,
       createdAt: now()
     },
@@ -746,8 +835,8 @@ function buildLocalMission(goal) {
       id: artifactId,
       title: 'Рабочий результат: ' + safeGoal.slice(0, 48),
       type: 'mission',
-      summary: 'Черновик результата, который агент подготовил по заданной цели.',
-      content: 'Цель: ' + safeGoal + '\n\nПлан:\n1. Уточнить контекст.\n2. Выполнить проверку или подготовку.\n3. Собрать результат.\n4. Вернуть сотруднику готовый артефакт.'
+      summary: status === 'done' ? 'Готовый результат автономного поручения.' : 'Черновик результата и план автономного выполнения.',
+      content: 'Цель: ' + safeGoal + '\n\nПлан выполнения:\n' + steps.map((step, index) => (index + 1) + '. [' + (step.status || 'todo') + '] ' + step.title + ' — ' + (step.detail || '')).join('\n') + '\n\nИтог v1:\nАгент создал структуру автономного запуска, план, статусы шагов и рабочий материал.'
     }
   };
 }
@@ -777,8 +866,13 @@ function generateReply(workspace, message) {
 
   if (/поруч|мисси|mission|план|исслед|проанализ|подготов|автоном|manus/.test(lower)) {
     const goal = message.replace(/создай|запусти|поручение|поручений|миссию|mission|план|агента|manus/gi, '').trim() || message;
+    if (workspace.mode !== 'execute') {
+      return workspace.mode === 'approve'
+        ? `Могу запустить поручение «${goal}». Подтверди, если ок.`
+        : `Могу оформить поручение «${goal}» с планом и готовым материалом.`;
+    }
     const result = startLocalMission(workspace, goal);
-    return `Запустил поручение: «${result.mission.goal}». Составил план, начал выполнение и положил черновик результата в “Готовые материалы”.`;
+    return `Запустил поручение: «${result.mission.goal}». Составил план, начал выполнение и положил черновик результата в “Результаты”.`;
   }
 
   if (/задач|task|сделай/.test(lower)) {
@@ -1439,7 +1533,7 @@ function bindEvents() {
       return;
     }
 
-    const value = el.promptInput.value.trim();
+    const value = (state.pendingMission ? el.promptTextarea.value : el.promptInput.value).trim();
     if (!value) {
       state.pendingTask = false;
       state.pendingMission = false;

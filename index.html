@@ -17,13 +17,13 @@
     <section class="auth-card" id="auth-card" aria-labelledby="auth-title">
       <div class="auth-copy">
         <div class="eyebrow">AgentHub</div>
-        <h1 id="auth-title">Рабочее место агента</h1>
-        <p>Здесь сотрудник пишет помощнику, запускает поручения, видит задачи и забирает готовые материалы.</p>
+        <h1 id="auth-title">Рабочее место цифрового сотрудника</h1>
+        <p>Здесь сотрудник ставит цели, запускает автономные поручения, видит прогресс и забирает готовые результаты.</p>
         <div class="feature-list">
           <div>Личный чат</div>
           <div>Поручения</div>
           <div>Задачи</div>
-          <div>Готовые материалы</div>
+          <div>Результаты</div>
         </div>
       </div>
       <form class="auth-form" id="login-form">
@@ -73,10 +73,10 @@
           </div>
           <nav class="nav-list" aria-label="Разделы">
             <a class="active" href="#workspace-grid" data-view="chat" data-short="Чат" title="Чат">Чат</a>
-            <a href="#agent-list" data-view="agents" data-short="Агенты" title="Агенты">Агенты</a>
+            <a href="#agent-list" data-view="agents" data-short="Команда" title="Команда">Команда</a>
             <a href="#mission-list" data-view="missions" data-short="Поруч." title="Поручения">Поручения</a>
             <a href="#task-list" data-view="tasks" data-short="Задачи" title="Задачи">Задачи</a>
-            <a href="#artifact-list" data-view="artifacts" data-short="Матер." title="Готовые материалы">Готовые материалы</a>
+            <a href="#artifact-list" data-view="artifacts" data-short="Рез." title="Результаты">Результаты</a>
             <a href="#onboarding-list" data-view="help" data-short="Старт" title="Как начать">Как начать</a>
             <a href="#agent-settings" data-view="settings" data-short="Настр." title="Настройки">Настройки</a>
           </nav>
@@ -92,7 +92,7 @@
               <span></span>
             </button>
             <div>
-              <div class="eyebrow">Личный помощник</div>
+              <div class="eyebrow">Цифровой сотрудник</div>
               <h2 id="workspace-title">—</h2>
               <p class="panel-subtitle" id="workspace-hint">—</p>
             </div>
@@ -117,7 +117,7 @@
                 <div class="tool-strip" id="agent-tools" aria-label="Инструменты агента"></div>
                 <div class="messages" id="messages" aria-label="История чата" role="log" aria-live="polite"></div>
                 <form class="composer" id="composer">
-                  <input id="message-input" type="text" placeholder="Напишите, что нужно сделать" autocomplete="off" aria-label="Ввод сообщения">
+                  <input id="message-input" type="text" placeholder="Дайте поручение или задайте вопрос" autocomplete="off" aria-label="Ввод сообщения">
                   <button class="primary-btn" id="send-btn" type="button" aria-label="Отправить сообщение">Отправить</button>
                 </form>
               </section>
@@ -128,7 +128,7 @@
                   <div class="today-summary" id="today-summary"></div>
                   <div class="next-step-card" id="next-step-card"></div>
                   <div class="today-actions">
-                    <button class="primary-btn" id="new-mission-btn" type="button">Новое поручение</button>
+                    <button class="primary-btn" id="new-mission-btn" type="button">Дать поручение</button>
                     <button class="ghost-btn" id="new-task-btn" type="button">Новая задача</button>
                   </div>
                 </section>
@@ -136,8 +136,8 @@
                 <section class="panel view-panel" data-panel="agents" aria-label="Агенты">
                   <div class="panel-head slim">
                     <div>
-                      <div class="panel-title">Мои агенты</div>
-                      <div class="panel-subtitle">Создавайте агентов под разные роли и задачи</div>
+                      <div class="panel-title">Команда</div>
+                      <div class="panel-subtitle">Каждый цифровой сотрудник ведет свой чат, поручения и материалы</div>
                     </div>
                     <button class="primary-btn" id="new-agent-btn" type="button">Создать</button>
                   </div>
@@ -148,7 +148,7 @@
                   <div class="panel-head slim">
                     <div>
                       <div class="panel-title">Поручения</div>
-                      <div class="panel-subtitle">Цель, план, прогресс и результат работы помощника</div>
+                      <div class="panel-subtitle">Автономная работа: цель, план, прогресс, результат</div>
                     </div>
                     <button class="primary-btn" type="button" data-empty-mission>Создать</button>
                   </div>
@@ -169,7 +169,7 @@
                 <section class="panel view-panel" data-panel="artifacts">
                   <div class="panel-head slim">
                     <div>
-                      <div class="panel-title">Готовые материалы</div>
+                      <div class="panel-title">Результаты</div>
                       <div class="panel-subtitle">Черновики, ответы и результаты помощника</div>
                     </div>
                   </div>
@@ -228,6 +228,7 @@
       <label>
         <span id="prompt-label">Текст</span>
         <input id="prompt-input" type="text" required>
+        <textarea id="prompt-textarea" class="hidden" rows="5"></textarea>
       </label>
       <p class="modal-help" id="prompt-help"></p>
       <div class="modal-actions">

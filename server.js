@@ -634,19 +634,48 @@ async function createWorkspaceForUser(user, body = {}) {
 
 function buildMissionFromGoal(goal) {
   const safeGoal = String(goal || '').trim() || 'Новое поручение помощнику';
+  const lower = safeGoal.toLowerCase();
   const artifactId = crypto.randomUUID();
+  const runId = crypto.randomUUID();
+  const needsWeb = /рынок|конкур|цена|сайт|найди|поиск|исслед|анализ|новост|интернет|web/.test(lower);
+  const needsFile = /таблиц|презентац|файл|документ|отчет|pdf|excel|csv/.test(lower);
+  const needsImage = isImageRequest(safeGoal);
+  const tools = [
+    { id: 'planner', label: 'Планировщик', status: 'done' },
+    ...(needsWeb ? [{ id: 'web', label: 'Поиск в интернете', status: 'queued' }] : []),
+    ...(needsFile ? [{ id: 'files', label: 'Файлы и материалы', status: 'queued' }] : []),
+    ...(needsImage ? [{ id: 'image', label: 'Генерация изображений', status: 'queued' }] : []),
+    { id: 'artifact', label: 'Готовый результат', status: 'done' }
+  ];
+  const steps = [
+    { title: 'Понять конечную цель и критерий готовности', status: 'done', tool: 'planner', detail: 'Агент выделил ожидаемый результат из запроса сотрудника.' },
+    { title: 'Составить рабочий план', status: 'done', tool: 'planner', detail: 'Задача разбита на этапы: контекст, сбор данных, обработка, итоговый материал.' },
+    needsWeb
+      ? { title: 'Собрать внешнюю информацию', status: 'queued', tool: 'web', detail: 'Нужен реальный web/browser worker для поиска и проверки источников.' }
+      : { title: 'Проверить внутренний контекст', status: 'done', tool: 'planner', detail: 'Для первого черновика достаточно данных из запроса.' },
+    needsFile
+      ? { title: 'Подготовить файл или таблицу', status: 'queued', tool: 'files', detail: 'Нужен файловый worker для создания вложения.' }
+      : { title: 'Собрать текстовый результат', status: 'done', tool: 'artifact', detail: 'Агент подготовил структурированный рабочий черновик.' },
+    { title: 'Передать итог сотруднику', status: needsWeb || needsFile || needsImage ? 'running' : 'done', tool: 'artifact', detail: 'Результат сохранен в готовых материалах; внешние tool-шаги отмечены для следующего worker-этапа.' }
+  ];
+  const progress = Math.round((steps.filter((step) => step.status === 'done').length / steps.length) * 100);
+  const status = progress === 100 ? 'done' : 'running';
+  const events = [
+    { time: now(), title: 'Поручение принято', text: safeGoal },
+    { time: now(), title: 'План создан', text: steps.map((step, index) => (index + 1) + '. ' + step.title).join('\n') },
+    { time: now(), title: 'Материал подготовлен', text: 'Черновик результата сохранен в разделе готовых материалов.' }
+  ];
   return {
     mission: {
       id: crypto.randomUUID(),
+      runId: runId,
       goal: safeGoal,
-      status: 'running',
-      progress: 75,
-      steps: [
-        { title: 'Понять цель и ожидаемый результат', status: 'done' },
-        { title: 'Разложить работу на шаги', status: 'done' },
-        { title: 'Собрать рабочий черновик', status: 'running' },
-        { title: 'Передать результат сотруднику', status: 'todo' }
-      ],
+      status: status,
+      progress: progress,
+      tools: tools,
+      steps: steps,
+      events: events,
+      output: 'Готовый материал: ' + artifactId,
       artifactId: artifactId,
       createdAt: now()
     },
@@ -654,8 +683,10 @@ function buildMissionFromGoal(goal) {
       id: artifactId,
       title: 'Рабочий результат: ' + safeGoal.slice(0, 48),
       type: 'mission',
-      summary: 'Черновик результата, который агент подготовил по заданной цели.',
-      content: 'Цель: ' + safeGoal + '\n\nПлан:\n1. Уточнить контекст.\n2. Выполнить проверку или подготовку.\n3. Собрать результат.\n4. Вернуть сотруднику готовый артефакт.'
+      summary: status === 'done'
+        ? 'Готовый результат автономного поручения.'
+        : 'Черновик результата и план автономного выполнения. Часть tool-шагов ждет подключения worker-движка.',
+      content: 'Цель: ' + safeGoal + '\n\nПлан выполнения:\n' + steps.map((step, index) => (index + 1) + '. [' + (step.status || 'todo') + '] ' + step.title + ' — ' + (step.detail || '')).join('\n') + '\n\nИтог v1:\nАгент создал структуру автономного запуска, план, статусы шагов и рабочий материал. Для задач с внешним поиском, файлами или изображениями следующие версии должны передавать queued tool-шаги отдельным worker-исполнителям.'
     }
   };
 }
@@ -1019,8 +1050,16 @@ async function askOpenClawGateway(workspace, userText, agentFiles) {
 
 async function answerWorkspaceMessage(workspace, userText, agentFiles) {
   const intent = extractIntent(userText);
-  if (intent === 'search') return { text: await buildSearchReply(userText) };
+  if (intent === 'search') {
+    if (workspace.mode !== 'execute') {
+      return { text: 'Могу запустить внешний поиск по этому запросу. Переключи агента в режим выполнения или запусти поручение явно, чтобы я не отправлял рабочие данные наружу без подтверждения.' };
+    }
+    return { text: await buildSearchReply(userText) };
+  }
   if (intent === 'image') {
+    if (workspace.mode !== 'execute') {
+      return { text: 'Могу сгенерировать изображение как готовый материал. Переключи агента в режим выполнения или запусти поручение явно, чтобы действие было подтверждено.' };
+    }
     const artifact = await buildImageArtifact(workspace, userText, agentFiles);
     if (!artifact) {
       return {
