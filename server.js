@@ -691,12 +691,129 @@ function buildMissionFromGoal(goal) {
   };
 }
 
-function startMission(workspace, goal) {
+async function startMission(workspace, goal, agentFiles) {
   const result = buildMissionFromGoal(goal);
   workspace.missions = [result.mission, ...(workspace.missions || [])].slice(0, 8);
   workspace.artifacts = [result.artifact, ...(workspace.artifacts || [])].slice(0, 8);
   addTask(workspace, result.mission.goal, 'Создано как поручение помощнику с планом и готовым материалом.');
+  return executeMission(workspace, result, agentFiles || getAgentFiles(workspace.id));
+}
+
+function missionStep(mission, tool) {
+  return (mission.steps || []).find((step) => step.tool === tool) || null;
+}
+
+function missionTool(mission, tool) {
+  return (mission.tools || []).find((item) => item.id === tool) || null;
+}
+
+function setMissionToolStatus(mission, tool, status) {
+  const item = missionTool(mission, tool);
+  if (item) item.status = status;
+}
+
+function setMissionStepStatus(mission, tool, status, detail) {
+  const step = missionStep(mission, tool);
+  if (!step) return;
+  step.status = status;
+  if (detail) step.detail = detail;
+}
+
+function addMissionEvent(mission, title, text) {
+  mission.events = [...(mission.events || []), { time: now(), title: title, text: text }].slice(-12);
+}
+
+function refreshMissionProgress(mission) {
+  const steps = mission.steps || [];
+  if (!steps.length) {
+    mission.progress = 0;
+    return;
+  }
+  mission.progress = Math.round((steps.filter((step) => step.status === 'done').length / steps.length) * 100);
+  if (steps.some((step) => step.status === 'failed')) {
+    mission.status = 'failed';
+  } else if (steps.every((step) => step.status === 'done')) {
+    mission.status = 'done';
+  } else {
+    mission.status = 'running';
+  }
+}
+
+function missionSourcesBlock(search) {
+  if (!search || !search.results || !search.results.length) return '';
+  return '\n\nИсточники:\n' + search.results.map((item, index) => {
+    return (index + 1) + '. ' + item.title + '\n' + item.url + (item.snippet ? '\n' + item.snippet : '');
+  }).join('\n\n');
+}
+
+async function executeMission(workspace, result, agentFiles) {
+  const mission = result.mission;
+  const artifact = result.artifact;
+  const goal = mission.goal;
+  let search = null;
+  addMissionEvent(mission, 'Выполнение началось', 'Агент запустил безопасные tool-шаги из allowlist.');
+
+  if (missionTool(mission, 'web')) {
+    setMissionToolStatus(mission, 'web', 'running');
+    setMissionStepStatus(mission, 'web', 'running', 'Идет внешний поиск по цели поручения.');
+    addMissionEvent(mission, 'Web search', 'Ищу и проверяю внешние источники.');
+    search = await searchWeb(goal);
+    if (search && search.results.length) {
+      setMissionToolStatus(mission, 'web', 'done');
+      setMissionStepStatus(mission, 'web', 'done', 'Найдено источников: ' + search.results.length + '.');
+      addMissionEvent(mission, 'Источники найдены', search.results.map((item, index) => (index + 1) + '. ' + item.title).join('\n'));
+    } else {
+      setMissionToolStatus(mission, 'web', 'failed');
+      setMissionStepStatus(mission, 'web', 'failed', 'Внешний поиск не вернул результаты.');
+      addMissionEvent(mission, 'Web search не сработал', 'Агент продолжил с черновиком на основе доступного контекста.');
+    }
+  }
+
+  if (missionTool(mission, 'image')) {
+    setMissionToolStatus(mission, 'image', 'running');
+    setMissionStepStatus(mission, 'image', 'running', 'Проверяю доступность генерации изображений.');
+    const image = await buildImageArtifact(workspace, goal, agentFiles);
+    if (image) {
+      setMissionToolStatus(mission, 'image', 'done');
+      setMissionStepStatus(mission, 'image', 'done', 'Изображение создано и сохранено в результатах: ' + image.title + '.');
+      addMissionEvent(mission, 'Изображение создано', image.title);
+    } else {
+      setMissionToolStatus(mission, 'image', 'failed');
+      setMissionStepStatus(mission, 'image', 'failed', 'Images API не настроен или недоступен.');
+      addMissionEvent(mission, 'Генерация изображения недоступна', 'Нужен OPENAI_API_KEY с доступом к Images API.');
+    }
+  }
+
+  if (missionTool(mission, 'files')) {
+    setMissionToolStatus(mission, 'files', 'done');
+    setMissionStepStatus(mission, 'files', 'done', 'Файловый результат подготовлен как скачиваемый текстовый материал v1.');
+    addMissionEvent(mission, 'Файл подготовлен', 'Материал можно скачать из раздела результатов.');
+  }
+
+  refreshMissionProgress(mission);
+  setMissionToolStatus(mission, 'artifact', 'running');
+  const gatewayDraft = await askOpenClawGateway(workspace, 'Подготовь итоговый рабочий результат по поручению: ' + goal + missionSourcesBlock(search), agentFiles);
+  const draft = gatewayDraft || ('Цель: ' + goal + '\n\nВыполнено:\n' + (mission.steps || []).map((step, index) => (index + 1) + '. ' + step.title + ' — ' + (statusCopyServer(step.status) || step.status) + '. ' + (step.detail || '')).join('\n') + missionSourcesBlock(search) + '\n\nВывод:\nПодготовлен рабочий материал v1. Если нужен более глубокий результат, следующий шаг — подключить durable worker/browser/files engine.');
+  artifact.summary = mission.status === 'failed' ? 'Частичный результат: часть инструментов не сработала.' : 'Готовый результат автономного поручения.';
+  artifact.content = draft;
+  setMissionToolStatus(mission, 'artifact', 'done');
+  setMissionStepStatus(mission, 'artifact', 'done', 'Итоговый материал сохранен и доступен для скачивания.');
+  addMissionEvent(mission, 'Итоговый материал готов', artifact.title);
+  refreshMissionProgress(mission);
+  mission.output = 'Готовый материал: ' + artifact.id;
   return result;
+}
+
+function statusCopyServer(status) {
+  const copy = {
+    todo: 'нужно сделать',
+    queued: 'в очереди',
+    running: 'в работе',
+    done: 'готово',
+    failed: 'ошибка',
+    cancelled: 'отменено'
+  };
+  return copy[status] || status;
 }
 
 function extractIntent(message) {
@@ -928,8 +1045,7 @@ function generateWorkflowReply(workspace, message, agentFiles) {
       if (workspace.mode === 'approve') return 'Могу запустить поручение «' + goal + '». Подтверди, если ок. ' + agentTone;
       return 'Могу оформить поручение «' + goal + '» с планом и готовым материалом. ' + agentTone;
     }
-    const result = startMission(workspace, goal);
-    return 'Запустил поручение: «' + result.mission.goal + '». Составил план, начал выполнение и положил черновик результата в “Готовые материалы”. ' + agentTone;
+    return 'Запускаю поручение «' + goal + '»: составлю план, выполню доступные tool-шаги и сохраню результат в материалах. ' + agentTone;
   }
 
   if (intent === 'search') {
@@ -1050,6 +1166,21 @@ async function askOpenClawGateway(workspace, userText, agentFiles) {
 
 async function answerWorkspaceMessage(workspace, userText, agentFiles) {
   const intent = extractIntent(userText);
+  if (intent === 'mission') {
+    const goal = String(userText).replace(/создай|запусти|поручение|поручений|миссию|mission|план|агента|manus/gi, '').trim() || userText;
+    if (workspace.mode !== 'execute') {
+      return {
+        text: workspace.mode === 'approve'
+          ? 'Могу запустить поручение «' + goal + '». Подтверди, если ок, или нажми “Дать поручение”.'
+          : 'Могу оформить поручение «' + goal + '» с планом и готовым материалом.'
+      };
+    }
+    const result = await startMission(workspace, goal, agentFiles);
+    return {
+      text: 'Выполнил поручение: «' + result.mission.goal + '». Статус: ' + statusCopyServer(result.mission.status) + '. Итог сохранен в “Результаты”.',
+      artifact: result.artifact
+    };
+  }
   if (intent === 'search') {
     if (workspace.mode !== 'execute') {
       return { text: 'Могу запустить внешний поиск по этому запросу. Переключи агента в режим выполнения или запусти поручение явно, чтобы я не отправлял рабочие данные наружу без подтверждения.' };
@@ -1096,8 +1227,8 @@ async function handleMission(req, res) {
       sendJson(res, 400, { error: 'empty_goal' });
       return;
     }
-    const result = startMission(ctx.workspace, goal);
-    addMessage(ctx.workspace, 'agent', 'Запустил поручение: «' + result.mission.goal + '». План и материал уже доступны справа.', getAgentDisplayName(ctx.workspace));
+    const result = await startMission(ctx.workspace, goal, getAgentFiles(ctx.workspace.id));
+    addMessage(ctx.workspace, 'agent', 'Выполнил поручение: «' + result.mission.goal + '». Статус: ' + statusCopyServer(result.mission.status) + '. Итоговый материал доступен в “Результаты”.', getAgentDisplayName(ctx.workspace), { artifactId: result.artifact.id });
     await saveWorkspace(ctx.workspace);
     sendJson(res, 200, { workspace: ctx.workspace, mission: result.mission, artifact: result.artifact });
   } catch (error) {
