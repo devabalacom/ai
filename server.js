@@ -22,6 +22,7 @@ const OPENAI_IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1';
 const OPENAI_IMAGE_SIZE = process.env.OPENAI_IMAGE_SIZE || '1024x1024';
 const AGENTS_DIR = path.join(ROOT, 'agents');
 let gatewayConfigWarned = false;
+let gatewayLastError = '';
 const failedLogins = new Map();
 
 if (!DATABASE_URL) {
@@ -63,7 +64,11 @@ function hashSessionToken(token) {
 }
 
 function agentBrainConfigured() {
-  return Boolean(OPENCLAW_GATEWAY_URL && (OPENCLAW_GATEWAY_TOKEN || OPENCLAW_GATEWAY_PASSWORD));
+  return Boolean(OPENCLAW_GATEWAY_URL);
+}
+
+function agentBrainAuthenticated() {
+  return Boolean(OPENCLAW_GATEWAY_TOKEN || OPENCLAW_GATEWAY_PASSWORD);
 }
 
 function isSecureRequest(req) {
@@ -1082,7 +1087,10 @@ function generateWorkflowReply(workspace, message, agentFiles) {
 
 function safeFallbackReply(workspace, intent) {
   if (!agentBrainConfigured()) {
-    return 'Модель агента сейчас не подключена на сервере, поэтому я не могу дать полноценный умный ответ. Нужно настроить OPENCLAW_GATEWAY_URL и OPENCLAW_GATEWAY_TOKEN или OPENCLAW_GATEWAY_PASSWORD в runtime окружении.';
+    return 'Модель агента сейчас не подключена на сервере, поэтому я не могу дать полноценный умный ответ. Нужно настроить OPENCLAW_GATEWAY_URL в runtime окружении.';
+  }
+  if (gatewayLastError) {
+    return 'Модель агента настроена, но gateway сейчас не отвечает. Я не буду подменять это шаблонным ответом. Проверь OpenClaw Gateway на сервере: ' + gatewayLastError + '.';
   }
   if (intent === 'greeting') return 'Привет. Что нужно сделать?';
   if (intent === 'status') {
@@ -1126,9 +1134,10 @@ function extractOpenClawText(payload) {
 async function askOpenClawGateway(workspace, userText, agentFiles) {
   if (!agentBrainConfigured()) {
     if (!gatewayConfigWarned) {
-      console.warn('OpenClaw gateway disabled: URL or auth token is missing');
+      console.warn('OpenClaw gateway disabled: OPENCLAW_GATEWAY_URL is missing');
       gatewayConfigWarned = true;
     }
+    gatewayLastError = 'OPENCLAW_GATEWAY_URL is missing';
     return null;
   }
 
@@ -1157,14 +1166,17 @@ async function askOpenClawGateway(workspace, userText, agentFiles) {
 
     if (!response.ok) {
       console.warn('OpenClaw gateway request failed:', response.status, response.statusText);
+      gatewayLastError = 'HTTP ' + response.status;
       return null;
     }
 
     const data = await response.json();
     const text = extractOpenClawText(data);
+    gatewayLastError = '';
     return text || null;
   } catch (error) {
-    console.warn('OpenClaw gateway request error:', error && error.message ? error.message : error);
+    gatewayLastError = error && error.message ? error.message : 'request failed';
+    console.warn('OpenClaw gateway request error:', gatewayLastError);
     return null;
   } finally {
     clearTimeout(timeoutId);
@@ -1210,10 +1222,10 @@ async function answerWorkspaceMessage(workspace, userText, agentFiles) {
     };
   }
   const reply = await askOpenClawGateway(workspace, userText, agentFiles);
-  if (!reply && !agentBrainConfigured()) {
+  if (!reply) {
     return { text: safeFallbackReply(workspace, intent) };
   }
-  return { text: sanitizeAgentReply(reply || generateWorkflowReply(workspace, userText, agentFiles), workspace, intent) };
+  return { text: sanitizeAgentReply(reply, workspace, intent) };
 }
 
 function tryWorkflowAction(workspace, text, reply) {
@@ -1482,6 +1494,8 @@ async function main() {
       return sendJson(res, 200, {
         ok: true,
         agentBrainConfigured: agentBrainConfigured(),
+        agentBrainAuthenticated: agentBrainAuthenticated(),
+        agentBrainLastError: gatewayLastError,
         imageGenerationConfigured: Boolean(OPENAI_API_KEY)
       });
     }
