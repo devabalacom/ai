@@ -715,6 +715,13 @@ button, input, select {
   overflow-wrap: anywhere;
 }
 
+.message-text {
+  white-space: pre-wrap;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 @keyframes slideIn {
   to {
     opacity: 1;
@@ -747,9 +754,8 @@ button, input, select {
 }
 
 .message-attachment pre {
-  max-height: 180px;
   margin: 0;
-  overflow: auto;
+  overflow: visible;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   color: var(--soft);

@@ -481,7 +481,7 @@ function renderWorkspace() {
         </div>
         <span>${escapeHtml(message.time)}</span>
       </div>
-      <div>${escapeHtml(message.text)}</div>
+      <div class="message-text">${escapeHtml(message.text)}</div>
       ${renderArtifactAttachment(findArtifact(workspace, message.artifactId))}
     </article>
   `}).join('') : `
