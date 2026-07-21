@@ -1114,11 +1114,23 @@ function toOpenAiMessages(workspace, userText, agentFiles) {
 }
 
 function extractOpenClawText(payload) {
+  if (!payload || typeof payload !== 'object') return '';
+  if (typeof payload.output_text === 'string') return payload.output_text.trim();
+  if (typeof payload.response === 'string') return payload.response.trim();
+  if (typeof payload.text === 'string') return payload.text.trim();
+  if (typeof payload.content === 'string') return payload.content.trim();
+  if (payload.message && typeof payload.message.content === 'string') return payload.message.content.trim();
+  if (Array.isArray(payload.content)) {
+    return payload.content.map(extractOpenClawText).filter(Boolean).join('').trim();
+  }
+  if (Array.isArray(payload.output)) {
+    return payload.output.map(extractOpenClawText).filter(Boolean).join('').trim();
+  }
   const choice = payload && payload.choices && payload.choices[0];
   const content = choice && choice.message && choice.message.content;
   if (typeof content === 'string') return content.trim();
   if (Array.isArray(content)) {
-    return content.map((part) => (part && part.text) || '').join('').trim();
+    return content.map(extractOpenClawText).filter(Boolean).join('').trim();
   }
   return '';
 }
@@ -1165,9 +1177,13 @@ async function askOpenClawGateway(workspace, userText, agentFiles) {
 
     const data = await response.json();
     const text = extractOpenClawText(data);
-    gatewayLastError = '';
     gatewayLastCheckedAt = new Date().toISOString();
-    return text || null;
+    if (!text) {
+      gatewayLastError = 'empty gateway response';
+      return null;
+    }
+    gatewayLastError = '';
+    return text;
   } catch (error) {
     gatewayLastError = error && error.message ? error.message : 'request failed';
     gatewayLastCheckedAt = new Date().toISOString();
