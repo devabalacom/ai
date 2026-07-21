@@ -17,6 +17,9 @@ const WORKFLOW_PROVIDER = process.env.WORKFLOW_PROVIDER || 'openclaw';
 const OPENCLAW_GATEWAY_URL = process.env.OPENCLAW_GATEWAY_URL || '';
 const OPENCLAW_GATEWAY_TOKEN = process.env.OPENCLAW_GATEWAY_TOKEN || '';
 const OPENCLAW_GATEWAY_PASSWORD = process.env.OPENCLAW_GATEWAY_PASSWORD || '';
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+const OPENAI_IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1';
+const OPENAI_IMAGE_SIZE = process.env.OPENAI_IMAGE_SIZE || '1024x1024';
 const AGENTS_DIR = path.join(ROOT, 'agents');
 let gatewayConfigWarned = false;
 
@@ -644,26 +647,88 @@ function escapeXml(value) {
     .replace(/'/g, '&apos;');
 }
 
-function buildImageArtifact(workspace, prompt) {
+function buildImagePrompt(workspace, prompt, agentFiles) {
+  const safePrompt = String(prompt || '').trim() || 'Рабочее изображение для задачи';
+  const context = [
+    agentFiles && agentFiles.soul ? 'Стиль агента: ' + agentFiles.soul.slice(0, 700) : '',
+    workspace && workspace.agentConfig && workspace.agentConfig.instructions
+      ? 'Настройки сотрудника: ' + workspace.agentConfig.instructions.slice(0, 500)
+      : ''
+  ].filter(Boolean).join('\n');
+  return [
+    'Создай готовое изображение по запросу сотрудника.',
+    'Запрос: ' + safePrompt,
+    context
+  ].filter(Boolean).join('\n\n');
+}
+
+async function dataUrlFromImageUrl(url) {
+  const response = await fetch(url);
+  if (!response.ok) return null;
+  const arrayBuffer = await response.arrayBuffer();
+  const contentType = response.headers.get('content-type') || 'image/png';
+  return {
+    content: Buffer.from(arrayBuffer).toString('base64'),
+    mimeType: contentType.split(';')[0] || 'image/png'
+  };
+}
+
+async function requestOpenAiImage(prompt) {
+  if (!OPENAI_API_KEY) return null;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 120000);
+  try {
+    const response = await fetch('https://api.openai.com/v1/images/generations', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        Authorization: 'Bearer ' + OPENAI_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: OPENAI_IMAGE_MODEL,
+        prompt: prompt,
+        size: OPENAI_IMAGE_SIZE,
+        n: 1
+      })
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      console.warn('OpenAI image generation failed:', response.status, detail.slice(0, 500));
+      return null;
+    }
+    const payload = await response.json();
+    const image = payload && payload.data && payload.data[0];
+    if (!image) return null;
+    if (image.b64_json) {
+      return { content: image.b64_json, mimeType: 'image/png' };
+    }
+    if (image.url) {
+      return await dataUrlFromImageUrl(image.url);
+    }
+    return null;
+  } catch (error) {
+    console.warn('OpenAI image generation error:', error && error.message ? error.message : error);
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function buildImageArtifact(workspace, prompt, agentFiles) {
   const safePrompt = String(prompt || '').trim() || 'Рабочее изображение для задачи';
   const title = 'Изображение: ' + safePrompt.slice(0, 48);
-  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720">' +
-    '<rect width="1200" height="720" fill="#07101b"/>' +
-    '<rect x="72" y="72" width="1056" height="576" rx="28" fill="#101826" stroke="#38bdf8" stroke-width="3"/>' +
-    '<circle cx="998" cy="168" r="72" fill="#f59e0b" opacity="0.9"/>' +
-    '<path d="M132 504 C296 392 384 440 520 336 C696 202 804 248 1068 168" fill="none" stroke="#38bdf8" stroke-width="18" stroke-linecap="round" opacity="0.85"/>' +
-    '<text x="132" y="172" fill="#e6edf7" font-family="Arial, sans-serif" font-size="48" font-weight="700">AgentHub image</text>' +
-    '<text x="132" y="246" fill="#cbd8e8" font-family="Arial, sans-serif" font-size="28">' + escapeXml(safePrompt.slice(0, 82)) + '</text>' +
-    '<text x="132" y="586" fill="#a0b5cc" font-family="Arial, sans-serif" font-size="24">Generated workspace artifact</text>' +
-    '</svg>';
+  const generated = await requestOpenAiImage(buildImagePrompt(workspace, safePrompt, agentFiles));
+  if (!generated || !generated.content) return null;
   const artifact = {
     id: crypto.randomUUID(),
     title: title,
     type: 'image',
-    summary: 'SVG-изображение, сгенерированное агентом по запросу сотрудника.',
-    content: svg,
-    mimeType: 'image/svg+xml',
-    downloadName: title.replace(/[^a-zA-Z0-9а-яА-Я_-]+/g, '-').replace(/^-|-$/g, '').slice(0, 64) + '.svg'
+    summary: 'Изображение, сгенерированное агентом по запросу сотрудника.',
+    content: generated.content,
+    contentEncoding: 'base64',
+    mimeType: generated.mimeType || 'image/png',
+    downloadName: title.replace(/[^a-zA-Z0-9а-яА-Я_-]+/g, '-').replace(/^-|-$/g, '').slice(0, 64) + '.png'
   };
   workspace.artifacts = [artifact, ...(workspace.artifacts || [])].slice(0, 8);
   return artifact;
@@ -682,7 +747,7 @@ function buildOpenClawPrompt(workspace, agentFiles, userText) {
     'Текущий режим: ' + workspace.mode + '.',
     'Активные миссии: ' + JSON.stringify((workspace.missions || []).slice(0, 3)),
     'Последние артефакты: ' + JSON.stringify((workspace.artifacts || []).slice(0, 3)),
-    'Доступные инструменты агента: поиск свежей информации в интернете и генерация изображений. Если запрос требует внешних данных, явно используй интернет-поиск и кратко укажи источники. Если запрос требует визуала, подготовь результат через генерацию изображения или дай точный промпт/параметры для генерации.',
+    'Доступные инструменты агента: поиск свежей информации в интернете и серверная генерация изображений через Images API. Если запрос требует внешних данных, явно используй интернет-поиск и кратко укажи источники. Если запрос требует визуала, не делай вид, что файл готов: реальный файл прикрепляет backend, а при недоступной генерации нужно честно сказать о настройке.',
     'Контекст изолирован: видишь только одного сотрудника и его workspace.',
     'Отвечай по-русски, коротко и по делу.',
     'Сообщение пользователя: ' + userText
@@ -836,7 +901,12 @@ async function answerWorkspaceMessage(workspace, userText, agentFiles) {
   const intent = extractIntent(userText);
   if (intent === 'search') return { text: await buildSearchReply(userText) };
   if (intent === 'image') {
-    const artifact = buildImageArtifact(workspace, userText);
+    const artifact = await buildImageArtifact(workspace, userText, agentFiles);
+    if (!artifact) {
+      return {
+        text: 'Не смог сгенерировать изображение: на сервере не настроена или недоступна генерация изображений. Нужен OPENAI_API_KEY с доступом к Images API.'
+      };
+    }
     return {
       text: 'Сгенерировал файл и прикрепил его в чат: ' + artifact.title + '. Его также можно найти в “Готовых материалах”.',
       artifact: artifact

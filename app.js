@@ -277,6 +277,9 @@ function artifactMimeType(artifact) {
 
 function artifactDataUrl(artifact) {
   if (!artifact?.content) return '';
+  if (artifact.contentEncoding === 'base64') {
+    return 'data:' + artifactMimeType(artifact) + ';base64,' + artifact.content;
+  }
   return 'data:' + artifactMimeType(artifact) + ',' + encodeURIComponent(artifact.content);
 }
 
@@ -693,10 +696,8 @@ function generateReply(workspace, message) {
   const lower = message.toLowerCase();
 
   if (isImageRequest(message)) {
-    const artifact = buildLocalImageArtifact(workspace, message);
     return {
-      text: 'Сгенерировал файл и прикрепил его в чат: ' + artifact.title + '. Его также можно найти в “Готовых материалах”.',
-      artifact: artifact
+      text: 'Сервер сейчас недоступен, поэтому я не могу запустить реальную генерацию изображения. Подключитесь к рабочему серверу и отправьте запрос еще раз.'
     };
   }
 
