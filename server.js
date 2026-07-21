@@ -802,12 +802,12 @@ async function executeMission(workspace, result, agentFiles) {
   refreshMissionProgress(mission);
   setMissionToolStatus(mission, 'artifact', 'running');
   const gatewayDraft = await askOpenClawGateway(workspace, 'Подготовь итоговый рабочий результат по поручению: ' + goal + missionSourcesBlock(search), agentFiles);
-  const draft = gatewayDraft || ('Цель: ' + goal + '\n\nВыполнено:\n' + (mission.steps || []).map((step, index) => (index + 1) + '. ' + step.title + ' — ' + (statusCopyServer(step.status) || step.status) + '. ' + (step.detail || '')).join('\n') + missionSourcesBlock(search) + '\n\nВывод:\nПодготовлен рабочий материал v1. Если нужен более глубокий результат, следующий шаг — подключить durable worker/browser/files engine.');
+  const draft = gatewayDraft || ('Не смог подготовить полноценный итог: модель агента/gateway не вернула ответ. ' + (gatewayLastError ? 'Ошибка: ' + gatewayLastError + '.' : 'Проверь runtime-настройки gateway.') + missionSourcesBlock(search));
   artifact.summary = mission.status === 'failed' ? 'Частичный результат: часть инструментов не сработала.' : 'Готовый результат автономного поручения.';
   artifact.content = draft;
-  setMissionToolStatus(mission, 'artifact', 'done');
-  setMissionStepStatus(mission, 'artifact', 'done', 'Итоговый материал сохранен и доступен для скачивания.');
-  addMissionEvent(mission, 'Итоговый материал готов', artifact.title);
+  setMissionToolStatus(mission, 'artifact', gatewayDraft ? 'done' : 'failed');
+  setMissionStepStatus(mission, 'artifact', gatewayDraft ? 'done' : 'failed', gatewayDraft ? 'Итоговый материал сохранен и доступен для скачивания.' : 'Gateway не вернул итоговый текст, шаблонный материал не создан.');
+  addMissionEvent(mission, gatewayDraft ? 'Итоговый материал готов' : 'Итоговый материал не создан', gatewayDraft ? artifact.title : draft);
   refreshMissionProgress(mission);
   mission.output = 'Готовый материал: ' + artifact.id;
   return result;
@@ -1185,31 +1185,25 @@ async function askOpenClawGateway(workspace, userText, agentFiles) {
 
 async function answerWorkspaceMessage(workspace, userText, agentFiles) {
   const intent = extractIntent(userText);
-  if (intent === 'mission') {
-    const goal = String(userText).replace(/создай|запусти|поручение|поручений|миссию|mission|план|агента|manus/gi, '').trim() || userText;
-    if (workspace.mode !== 'execute') {
-      return {
-        text: workspace.mode === 'approve'
-          ? 'Могу запустить поручение «' + goal + '». Подтверди, если ок, или нажми “Дать поручение”.'
-          : 'Могу оформить поручение «' + goal + '» с планом и готовым материалом.'
-      };
+  if (intent === 'task' && workspace.mode === 'execute') {
+    const title = String(userText).replace(/создай|сделай|задачу|task/gi, '').trim() || 'Новая задача';
+    if (!workspace.tasks.some((task) => task.title.toLowerCase() === title.toLowerCase())) {
+      addTask(workspace, title, 'Создано из чата рабочего агента.');
     }
+    return { text: 'Создал задачу: ' + title + '.' };
+  }
+  if (intent === 'mission' && workspace.mode === 'execute') {
+    const goal = String(userText).replace(/создай|запусти|поручение|поручений|миссию|mission|план|агента|manus/gi, '').trim() || userText;
     const result = await startMission(workspace, goal, agentFiles);
     return {
       text: 'Выполнил поручение: «' + result.mission.goal + '». Статус: ' + statusCopyServer(result.mission.status) + '. Итог сохранен в “Результаты”.',
       artifact: result.artifact
     };
   }
-  if (intent === 'search') {
-    if (workspace.mode !== 'execute') {
-      return { text: 'Могу запустить внешний поиск по этому запросу. Переключи агента в режим выполнения или запусти поручение явно, чтобы я не отправлял рабочие данные наружу без подтверждения.' };
-    }
+  if (intent === 'search' && workspace.mode === 'execute') {
     return { text: await buildSearchReply(userText) };
   }
-  if (intent === 'image') {
-    if (workspace.mode !== 'execute') {
-      return { text: 'Могу сгенерировать изображение как готовый материал. Переключи агента в режим выполнения или запусти поручение явно, чтобы действие было подтверждено.' };
-    }
+  if (intent === 'image' && workspace.mode === 'execute') {
     const artifact = await buildImageArtifact(workspace, userText, agentFiles);
     if (!artifact) {
       return {
