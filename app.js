@@ -1,4 +1,5 @@
 const STORAGE_KEY = 'agenthub-client-state-v2';
+const SELECTED_AGENT_KEY = 'agenthub-selected-agent-id';
 const API_BASE = (window.AGENTHUB_API_BASE || '').replace(/\/$/, '');
 const TIME_ZONE = 'Europe/Moscow';
 const DEMO_MODE = new URLSearchParams(window.location.search).get('demo') === '1';
@@ -97,6 +98,7 @@ const state = {
   pendingAgent: false,
   sendingMessage: false,
   failedDraft: null,
+  capabilities: { imageGenerationConfigured: false },
   currentView: 'chat',
   sidebarCollapsed: window.matchMedia('(max-width: 1100px)').matches
 };
@@ -108,7 +110,9 @@ const el = {
   userSelect: document.getElementById('user-select'),
   password: document.getElementById('password'),
   demoFill: document.getElementById('demo-fill'),
+  userOptions: document.getElementById('user-options'),
   backendStatus: document.getElementById('backend-status'),
+  appStatus: document.getElementById('app-status'),
   logoutBtn: document.getElementById('logout-btn'),
   sideNav: document.getElementById('side-nav'),
   sidebarToggle: document.getElementById('sidebar-toggle'),
@@ -152,7 +156,8 @@ const el = {
   promptLabel: document.getElementById('prompt-label'),
   promptInput: document.getElementById('prompt-input'),
   promptHelp: document.getElementById('prompt-help'),
-  promptSubmit: document.getElementById('prompt-submit')
+  promptSubmit: document.getElementById('prompt-submit'),
+  promptCancel: document.getElementById('prompt-cancel')
 };
 
 function persistLocal() {
@@ -163,6 +168,23 @@ function persistLocal() {
     agents: state.agents,
     workspaces: state.localWorkspaces
   }));
+}
+
+function selectedAgentId() {
+  try {
+    return localStorage.getItem(SELECTED_AGENT_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+function persistSelectedAgent(agentId) {
+  try {
+    if (agentId) localStorage.setItem(SELECTED_AGENT_KEY, agentId);
+    else localStorage.removeItem(SELECTED_AGENT_KEY);
+  } catch {
+    // ignore storage failures
+  }
 }
 
 function restoreLocal() {
@@ -191,6 +213,10 @@ function recoverUnauthorized() {
   state.pendingMission = false;
   state.pendingAgent = false;
   if (el.authCard && el.dashboard) render();
+}
+
+function announceStatus(message) {
+  if (el.appStatus) el.appStatus.textContent = message;
 }
 
 async function apiRequest(path, options = {}) {
@@ -286,11 +312,12 @@ function agentDisplayName(workspace) {
 }
 
 function artifactFileName(artifact) {
-  return artifact?.downloadName || (String(artifact?.title || 'agenthub-file').replace(/[^a-zA-Z0-9а-яА-Я_-]+/g, '-').replace(/^-|-$/g, '').slice(0, 64) || 'agenthub-file') + (artifact?.type === 'image' ? '.svg' : '.txt');
+  const fallbackExt = artifact?.type === 'image' ? '.png' : '.txt';
+  return artifact?.downloadName || (String(artifact?.title || 'agenthub-file').replace(/[^a-zA-Z0-9а-яА-Я_-]+/g, '-').replace(/^-|-$/g, '').slice(0, 64) || 'agenthub-file') + fallbackExt;
 }
 
 function artifactMimeType(artifact) {
-  return artifact?.mimeType || (artifact?.type === 'image' ? 'image/svg+xml' : 'text/plain;charset=utf-8');
+  return artifact?.mimeType || (artifact?.type === 'image' ? 'image/png' : 'text/plain;charset=utf-8');
 }
 
 function artifactDataUrl(artifact) {
@@ -314,6 +341,13 @@ function renderArtifactAttachment(artifact) {
     '</div>';
 }
 
+function renderArtifactBody(artifact) {
+  if (artifact.type === 'image' && artifact.content) {
+    return '<img class="artifact-preview" src="' + artifactDataUrl(artifact) + '" alt="' + escapeHtml(artifact.title) + '">';
+  }
+  return '<details><summary>Открыть полностью</summary><pre>' + escapeHtml(artifact.content || artifact.summary || '') + '</pre></details>';
+}
+
 function quickActionLabel(text) {
   const value = String(text || '');
   return quickActionLabels.find((item) => item.pattern.test(value))?.label || value;
@@ -322,7 +356,7 @@ function quickActionLabel(text) {
 function backendStatusText() {
   if (state.apiAvailable) return 'Подключено к рабочему серверу. Данные сохраняются в вашем личном окружении.';
   if (DEMO_MODE) return 'Демо-режим: данные сохраняются только в этом браузере.';
-  return 'Сервер недоступен: включен локальный режим для проверки интерфейса.';
+  return 'Сервер недоступен. Рабочие действия заблокированы, чтобы не потерять данные.';
 }
 
 function nextStep(workspace) {
@@ -417,10 +451,16 @@ function openAgentPrompt() {
 function renderViewState() {
   el.navLinks.forEach((link) => {
     link.classList.toggle('active', link.dataset.view === state.currentView);
+    if (link.dataset.view === state.currentView) {
+      link.setAttribute('aria-current', 'page');
+    } else {
+      link.removeAttribute('aria-current');
+    }
   });
   el.viewPanels.forEach((panel) => {
     panel.classList.toggle('hidden', panel.dataset.panel !== state.currentView);
   });
+  el.dashboard?.classList.toggle('non-chat-view', state.currentView !== 'chat');
   el.todayPanel.classList.toggle('hidden', state.currentView !== 'chat');
 }
 
@@ -433,25 +473,29 @@ function renderAuthState() {
   el.sidebarToggle?.setAttribute('aria-label', state.sidebarCollapsed ? 'Открыть меню' : 'Скрыть меню');
   el.sideNavToggle?.setAttribute('aria-expanded', String(!state.sidebarCollapsed));
   el.sideNavToggle?.setAttribute('aria-label', state.sidebarCollapsed ? 'Открыть меню' : 'Свернуть меню');
+  const navHidden = loggedIn && state.sidebarCollapsed && window.matchMedia('(max-width: 1100px)').matches;
+  el.sideNav?.toggleAttribute('inert', navHidden);
+  el.sideNav?.setAttribute('aria-hidden', String(navHidden));
 }
 
 function setSidebarCollapsed(collapsed) {
   state.sidebarCollapsed = collapsed;
   renderAuthState();
+  if (collapsed) el.sidebarToggle?.focus({ preventScroll: true });
 }
 
 function renderUserSelect() {
   const selected = el.userSelect.value;
-  const options = state.users.map((user) => {
+  const options = (DEMO_MODE ? state.users : []).map((user) => {
     const option = document.createElement('option');
     option.value = String(user.id);
-    option.textContent = `${user.name} · ${user.title}`;
+    option.label = `${user.name} · ${user.title}`;
     return option;
   });
-  el.userSelect.replaceChildren(...options);
-  if (state.users.some((user) => String(user.id) === selected)) {
+  el.userOptions?.replaceChildren(...options);
+  if (DEMO_MODE && state.users.some((user) => String(user.id) === selected)) {
     el.userSelect.value = selected;
-  } else if (state.users[0]) {
+  } else if (DEMO_MODE && state.users[0]) {
     el.userSelect.value = String(state.users[0].id);
   }
   if (el.backendStatus) el.backendStatus.textContent = backendStatusText();
@@ -471,8 +515,8 @@ function renderAgentList(workspace) {
           <p>${escapeHtml(title)}</p>
         </div>
         <div class="agent-actions">
-          <button type="button" data-agent-select="${escapeHtml(agent.id)}">${active ? 'Открыт' : 'Открыть'}</button>
-          <button type="button" data-agent-archive="${escapeHtml(agent.id)}" ${agents.length <= 1 ? 'disabled' : ''}>Архив</button>
+          <button type="button" data-agent-select="${escapeHtml(agent.id)}" ${active ? 'disabled aria-current="true"' : ''}>${active ? 'Открыт' : 'Открыть'}</button>
+          <button class="danger-action" type="button" data-agent-archive="${escapeHtml(agent.id)}" ${agents.length <= 1 ? 'disabled' : ''}>Архив</button>
         </div>
       </article>
     `;
@@ -509,14 +553,18 @@ function renderWorkspace() {
 
   const modes = ['answer', 'suggest', 'approve', 'execute'];
   el.modeSwitch.innerHTML = modes.map((mode) => `
-    <button class="mode-chip ${mode === workspace.mode ? 'active' : ''}" data-mode="${mode}" type="button">${escapeHtml(modeLabel(mode))}</button>
+    <button class="mode-chip ${mode === workspace.mode ? 'active' : ''}" data-mode="${mode}" type="button" aria-pressed="${mode === workspace.mode}">${escapeHtml(modeLabel(mode))}</button>
   `).join('');
 
   el.quickActions.innerHTML = workspace.quickActions.map((item) => `
-    <button class="quick-chip" type="button" data-quick="${escapeHtml(item)}" title="${escapeHtml(item)}">${escapeHtml(quickActionLabel(item))}</button>
+    <button class="quick-chip" type="button" data-quick="${escapeHtml(item)}" title="${escapeHtml(item)}" aria-label="${escapeHtml(item)}">${escapeHtml(quickActionLabel(item))}</button>
   `).join('');
 
-  el.agentTools.innerHTML = agentTools.map((tool) => `
+  const tools = agentTools.map((tool) => tool.id === 'image'
+    ? { ...tool, status: state.capabilities.imageGenerationConfigured ? 'включена' : 'не настроена' }
+    : tool
+  );
+  el.agentTools.innerHTML = tools.map((tool) => `
     <div class="tool-chip" data-tool="${escapeHtml(tool.id)}">
       <strong>${escapeHtml(tool.label)}</strong>
       <span>${escapeHtml(tool.status)}</span>
@@ -577,9 +625,9 @@ function renderWorkspace() {
         ${statusBadge(task.status)}
       </div>
       <div class="task-actions">
-        <button type="button" data-task-status="todo" data-task-id="${escapeHtml(task.id)}">${statusCopy.todo}</button>
-        <button type="button" data-task-status="waiting" data-task-id="${escapeHtml(task.id)}">${statusCopy.waiting}</button>
-        <button type="button" data-task-status="done" data-task-id="${escapeHtml(task.id)}">${statusCopy.done}</button>
+        <button type="button" data-task-status="todo" data-task-id="${escapeHtml(task.id)}" aria-pressed="${task.status === 'todo'}" aria-label="Пометить задачу ${escapeHtml(task.title)} как: ${statusCopy.todo}">${statusCopy.todo}</button>
+        <button type="button" data-task-status="waiting" data-task-id="${escapeHtml(task.id)}" aria-pressed="${task.status === 'waiting'}" aria-label="Пометить задачу ${escapeHtml(task.title)} как: ${statusCopy.waiting}">${statusCopy.waiting}</button>
+        <button type="button" data-task-status="done" data-task-id="${escapeHtml(task.id)}" aria-pressed="${task.status === 'done'}" aria-label="Пометить задачу ${escapeHtml(task.title)} как: ${statusCopy.done}">${statusCopy.done}</button>
       </div>
     </div>
   `).join('') : '<div class="empty-state"><strong>Задач пока нет</strong><p>Задачи нужны для ручных следующих шагов. Если нужен готовый результат, запускайте поручение.</p><div class="empty-actions"><button class="quick-chip" type="button" data-empty-task>Добавить задачу</button><button class="quick-chip" type="button" data-empty-mission>Запустить поручение</button></div></div>';
@@ -593,12 +641,12 @@ function renderWorkspace() {
         </div>
         ${statusBadge(mission.status)}
       </div>
-      <div class="progress-track"><span style="width: ${missionProgress(mission)}%"></span></div>
+      <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${missionProgress(mission)}" aria-label="Прогресс поручения: ${missionProgress(mission)}%"><span style="width: ${missionProgress(mission)}%"></span></div>
       <div class="mission-steps">
         ${(mission.steps || []).map((step) => `
           <div class="mission-step ${escapeHtml(step.status)}">
             <span></span>
-            <p>${escapeHtml(step.title)}</p>
+            <p><span class="sr-only">${escapeHtml(statusCopy[step.status] || step.status)}: </span>${escapeHtml(step.title)}</p>
           </div>
         `).join('')}
       </div>
@@ -610,10 +658,7 @@ function renderWorkspace() {
       <div class="artifact-meta"><span>${escapeHtml(artifactTypeLabel(artifact.type))}</span></div>
       <strong>${escapeHtml(artifact.title)}</strong>
       <p>${escapeHtml(artifact.summary)}</p>
-      <details>
-        <summary>Открыть полностью</summary>
-        <pre>${escapeHtml(artifact.content)}</pre>
-      </details>
+      ${renderArtifactBody(artifact)}
       <div class="artifact-actions">
         <button type="button" data-artifact-download="${escapeHtml(artifact.id)}">Скачать файл</button>
         <button type="button" data-artifact-copy="${escapeHtml(artifact.id)}">Скопировать</button>
@@ -738,10 +783,11 @@ function generateReply(workspace, message) {
 
   if (/задач|task|сделай/.test(lower)) {
     const title = message.replace(/создай|сделай|задачу|task/gi, '').trim() || 'Новая задача';
-    addLocalTask(workspace, title, 'Создано из чата.');
-    return workspace.mode === 'execute'
-      ? `Готово: задача «${title}» добавлена.`
-      : `Могу добавить задачу «${title}». Подтверди, если ок.`;
+    if (workspace.mode === 'execute') {
+      addLocalTask(workspace, title, 'Создано из чата.');
+      return `Готово: задача «${title}» добавлена.`;
+    }
+    return `Могу добавить задачу «${title}». Подтверди, если ок.`;
   }
 
   if (/прайс|цена|документ|найди|поиск|интернет|web|сайт/.test(lower)) {
@@ -773,6 +819,10 @@ async function detectBackend() {
   try {
     const response = await fetch((API_BASE ? API_BASE : '') + '/api/health', { cache: 'no-store', credentials: 'include' });
     state.apiAvailable = response.ok;
+    if (response.ok) {
+      const health = await response.json();
+      state.capabilities.imageGenerationConfigured = Boolean(health.imageGenerationConfigured);
+    }
   } catch {
     state.apiAvailable = false;
   }
@@ -787,10 +837,10 @@ async function loadUsers() {
         return;
       }
     } catch {
-      // Keep demo users as a safe fallback for local checks.
+      // Public employee listing is disabled in production.
     }
   }
-  state.users = demoUsers;
+  state.users = DEMO_MODE ? demoUsers : [];
 }
 
 async function loadSession() {
@@ -798,28 +848,37 @@ async function loadSession() {
     try {
       const me = await apiRequest('/api/me', { allowUnauthorized: true });
       state.currentUser = me.user;
-      state.workspace = me.workspace;
       state.agents = Array.isArray(me.agents) ? me.agents : (me.workspace ? [me.workspace] : []);
+      const storedAgentId = selectedAgentId();
+      state.workspace = state.agents.find((agent) => agent.id === storedAgentId) || me.workspace;
+      if (state.workspace?.id) persistSelectedAgent(state.workspace.id);
       return Boolean(state.currentUser && state.workspace);
     } catch (error) {
       if (error.status !== 401) throw error;
+      state.currentUser = null;
+      state.workspace = null;
+      state.agents = [];
+      return false;
     }
   }
 
-  restoreLocal();
+  if (DEMO_MODE) restoreLocal();
   return Boolean(state.currentUser && state.workspace);
 }
 
 async function loginUser(login, password) {
+  if (!state.apiAvailable && !DEMO_MODE) throw new Error('backend_unavailable');
   if (state.apiAvailable) {
     const result = await apiRequest('/api/login', {
       method: 'POST',
       body: JSON.stringify({ login, password })
     });
     state.currentUser = result.user;
-    state.workspace = result.workspace;
     state.agents = Array.isArray(result.agents) ? result.agents : (result.workspace ? [result.workspace] : []);
+    const storedAgentId = selectedAgentId();
+    state.workspace = state.agents.find((agent) => agent.id === storedAgentId) || result.workspace;
     replaceAgentInState(state.workspace);
+    persistSelectedAgent(state.workspace?.id);
     return;
   }
 
@@ -829,6 +888,7 @@ async function loginUser(login, password) {
   state.workspace = structuredClone(state.localWorkspaces[user.agentId]);
   state.agents = Object.values(state.localWorkspaces).filter((workspace) => workspace.ownerUserId === user.id || workspace.id === user.agentId);
   replaceAgentInState(state.workspace);
+  persistSelectedAgent(state.workspace?.id);
   persistLocal();
 }
 
@@ -843,6 +903,7 @@ async function logoutUser() {
   state.currentUser = null;
   state.workspace = null;
   state.agents = [];
+  persistSelectedAgent('');
   if (!state.apiAvailable) localStorage.removeItem(STORAGE_KEY);
   render();
 }
@@ -851,6 +912,7 @@ async function selectAgent(agentId) {
   const agent = state.agents.find((item) => item.id === agentId);
   if (!agent) return;
   state.workspace = agent;
+  persistSelectedAgent(agent.id);
   state.currentView = 'chat';
   render();
 }
@@ -865,6 +927,7 @@ async function createAgent(name) {
     });
     state.agents = Array.isArray(result.agents) ? result.agents : [];
     state.workspace = result.workspace;
+    persistSelectedAgent(state.workspace?.id);
   } else {
     const workspace = {
       id: state.currentUser.id + '-' + newId(),
@@ -883,6 +946,7 @@ async function createAgent(name) {
     state.localWorkspaces[workspace.id] = workspace;
     state.agents = [...state.agents, workspace];
     state.workspace = workspace;
+    persistSelectedAgent(state.workspace?.id);
     persistLocal();
   }
   state.currentView = 'settings';
@@ -896,10 +960,12 @@ async function archiveAgent(agentId) {
     const result = await apiRequest('/api/agents/' + encodeURIComponent(agentId), { method: 'DELETE' });
     state.agents = Array.isArray(result.agents) ? result.agents : [];
     state.workspace = state.agents.find((agent) => agent.id === state.workspace?.id) || result.workspace || state.agents[0] || null;
+    persistSelectedAgent(state.workspace?.id);
   } else {
     state.agents = state.agents.filter((agent) => agent.id !== agentId);
     delete state.localWorkspaces[agentId];
     state.workspace = state.agents.find((agent) => agent.id === state.workspace?.id) || state.agents[0] || null;
+    persistSelectedAgent(state.workspace?.id);
     persistLocal();
   }
   render();
@@ -957,6 +1023,7 @@ async function sendMessage(text) {
   if (!safeText) return;
   const workspace = currentWorkspace();
   if (!workspace) return;
+  const requestWorkspaceId = workspace.id;
   const retryingFailedDraft = Boolean(
     state.failedDraft
     && state.failedDraft.text === safeText
@@ -980,8 +1047,11 @@ async function sendMessage(text) {
         body: JSON.stringify({ text: safeText })
       });
       hideTypingIndicator();
-      state.workspace = result.workspace;
-      replaceAgentInState(state.workspace);
+      replaceAgentInState(result.workspace);
+      if (state.workspace?.id === requestWorkspaceId) {
+        state.workspace = result.workspace;
+        persistSelectedAgent(state.workspace?.id);
+      }
     } else {
       showTypingIndicator();
       // Simulate API delay for better UX
@@ -990,7 +1060,7 @@ async function sendMessage(text) {
       const reply = typeof generated === 'string' ? generated : generated.text;
       hideTypingIndicator();
       addLocalMessage(workspace, 'agent', reply, agentDisplayName(workspace), generated.artifact ? { artifactId: generated.artifact.id } : {});
-      state.workspace = workspace;
+      if (state.workspace?.id === requestWorkspaceId) state.workspace = workspace;
       persistLocal();
     }
     render();
@@ -1109,15 +1179,29 @@ async function copyArtifact(artifact) {
   if (!artifact) return;
   const text = artifact.content || artifact.summary || artifact.title || '';
   if (navigator.clipboard && navigator.clipboard.writeText) {
-    await navigator.clipboard.writeText(text);
-    return;
+    try {
+      await navigator.clipboard.writeText(text);
+      announceStatus('Материал скопирован');
+      return;
+    } catch {
+      announceStatus('Не удалось скопировать материал');
+    }
   }
   window.prompt('Скопируйте текст', text);
 }
 
 function downloadArtifact(artifact) {
   if (!artifact) return;
-  const blob = new Blob([artifact.content || artifact.summary || artifact.title || ''], { type: artifactMimeType(artifact) });
+  let content = artifact.content || artifact.summary || artifact.title || '';
+  if (artifact.contentEncoding === 'base64' && artifact.content) {
+    const binary = atob(artifact.content);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+    content = bytes;
+  }
+  const blob = new Blob([content], { type: artifactMimeType(artifact) });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -1126,6 +1210,7 @@ function downloadArtifact(artifact) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+  announceStatus('Файл скачан');
 }
 
 async function setTaskStatus(taskId, status) {
@@ -1152,7 +1237,7 @@ function bindEvents() {
   const clearPasswordError = () => el.password.setCustomValidity('');
 
   el.password.addEventListener('input', clearPasswordError);
-  el.userSelect.addEventListener('change', clearPasswordError);
+  el.userSelect.addEventListener('input', clearPasswordError);
 
   el.loginForm.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -1169,6 +1254,10 @@ function bindEvents() {
     el.userSelect.value = demoUsers[0].id;
     el.password.value = demoUsers[0].password;
     clearPasswordError();
+  });
+
+  el.promptCancel?.addEventListener('click', () => {
+    el.promptModal.close('cancel');
   });
 
   el.logoutBtn.addEventListener('click', () => {

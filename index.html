@@ -29,8 +29,9 @@
       <form class="auth-form" id="login-form">
         <div class="panel-title">Вход сотрудника</div>
         <label>
-          <span>Пользователь</span>
-          <select id="user-select" required></select>
+          <span>Логин сотрудника</span>
+          <input id="user-select" type="text" list="user-options" placeholder="Например: alina@company.com" autocomplete="username" required>
+          <datalist id="user-options"></datalist>
         </label>
         <label>
           <span>Пароль</span>
@@ -100,7 +101,7 @@
 
           <section class="workspace">
             <div class="grid" id="workspace-grid">
-              <section class="panel chat-panel">
+              <section class="panel chat-panel" data-panel="chat">
                 <div class="panel-head">
                   <div>
                     <div class="panel-title" id="profile-name">—</div>
@@ -108,7 +109,7 @@
                     <div class="panel-subtitle" id="chat-subtitle">—</div>
                   </div>
                   <div>
-                    <div class="mode-switch" id="mode-switch"></div>
+                    <div class="mode-switch" id="mode-switch" role="group" aria-label="Режим работы агента"></div>
                     <div class="mode-help" id="mode-help">—</div>
                   </div>
                 </div>
@@ -149,6 +150,7 @@
                       <div class="panel-title">Поручения</div>
                       <div class="panel-subtitle">Цель, план, прогресс и результат работы помощника</div>
                     </div>
+                    <button class="primary-btn" type="button" data-empty-mission>Создать</button>
                   </div>
                   <div class="mission-list" id="mission-list" role="list"></div>
                 </section>
@@ -159,6 +161,7 @@
                       <div class="panel-title">Задачи</div>
                       <div class="panel-subtitle">То, что нужно не забыть или довести до конца</div>
                     </div>
+                    <button class="primary-btn" type="button" data-empty-task>Добавить</button>
                   </div>
                   <div class="task-list" id="task-list" role="list"></div>
                 </section>
@@ -217,6 +220,7 @@
       </div>
     </section>
   </main>
+  <div class="sr-only" id="app-status" aria-live="polite"></div>
 
   <dialog class="modal" id="prompt-modal">
     <form method="dialog" class="modal-card">
@@ -227,8 +231,8 @@
       </label>
       <p class="modal-help" id="prompt-help"></p>
       <div class="modal-actions">
-        <button value="cancel" class="ghost-btn">Отмена</button>
-        <button value="ok" class="primary-btn" id="prompt-submit">Сохранить</button>
+        <button value="ok" type="submit" class="primary-btn" id="prompt-submit">Сохранить</button>
+        <button value="cancel" type="button" class="ghost-btn" id="prompt-cancel">Отмена</button>
       </div>
     </form>
   </dialog>

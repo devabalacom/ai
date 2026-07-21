@@ -22,6 +22,7 @@ const OPENAI_IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1';
 const OPENAI_IMAGE_SIZE = process.env.OPENAI_IMAGE_SIZE || '1024x1024';
 const AGENTS_DIR = path.join(ROOT, 'agents');
 let gatewayConfigWarned = false;
+const failedLogins = new Map();
 
 if (!DATABASE_URL) {
   console.error('DATABASE_URL is required');
@@ -179,6 +180,7 @@ async function initDb() {
   await pool.query("ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS agent_config jsonb NOT NULL DEFAULT '{}'::jsonb");
   await pool.query("ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS owner_user_id text");
   await pool.query("ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS archived boolean NOT NULL DEFAULT false");
+  await pool.query('CREATE INDEX IF NOT EXISTS workspaces_owner_active_idx ON workspaces (owner_user_id, archived, name, id)');
   await pool.query(`
     CREATE TABLE IF NOT EXISTS sessions (
       token text PRIMARY KEY,
@@ -200,9 +202,10 @@ async function initDb() {
   }
 
   for (const workspace of seedWorkspaces) {
+    const owner = seedUsers.find((user) => user.agentId === workspace.id);
     await pool.query(`
-      INSERT INTO workspaces (id, name, title, mode, model, quick_actions, tasks, messages, missions, artifacts, agent_config)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      INSERT INTO workspaces (id, name, title, mode, model, quick_actions, tasks, messages, missions, artifacts, agent_config, owner_user_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       ON CONFLICT (id) DO NOTHING
     `, [
       workspace.id,
@@ -215,12 +218,8 @@ async function initDb() {
       JSON.stringify(workspace.messages),
       JSON.stringify(workspace.missions),
       JSON.stringify(workspace.artifacts),
-      JSON.stringify(workspace.agentConfig)
-    ]);
-    await pool.query('UPDATE workspaces SET missions = $1, artifacts = $2 WHERE id = $3 AND jsonb_array_length(missions) = 0 AND jsonb_array_length(artifacts) = 0', [
-      JSON.stringify(workspace.missions),
-      JSON.stringify(workspace.artifacts),
-      workspace.id
+      JSON.stringify(workspace.agentConfig),
+      owner ? owner.id : null
     ]);
   }
 
@@ -263,13 +262,20 @@ function parseCookies(req) {
   return Object.fromEntries(entries);
 }
 
-function setCorsHeaders(res) {
+function originAllowed(req) {
+  if (!FRONTEND_ORIGIN) return true;
+  const origin = req.headers.origin;
+  return !origin || origin === FRONTEND_ORIGIN;
+}
+
+function setCorsHeaders(req, res) {
   if (!FRONTEND_ORIGIN) return;
+  if (!originAllowed(req)) return;
   res.setHeader('Access-Control-Allow-Origin', FRONTEND_ORIGIN);
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Agent-Id');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
 }
 
 function sendJson(res, statusCode, payload) {
@@ -381,10 +387,16 @@ async function getWorkspacesForUser(userId) {
 }
 
 async function getWorkspaceForUser(user, workspaceId) {
-  const requestedId = String(workspaceId || user.agent_id || '').trim();
+  const explicitId = workspaceId !== undefined && workspaceId !== null && String(workspaceId).trim() !== '';
+  const requestedId = String(explicitId ? workspaceId : user.agent_id || '').trim();
   if (requestedId) {
     const result = await pool.query('SELECT * FROM workspaces WHERE id = $1 AND owner_user_id = $2 AND archived = false LIMIT 1', [requestedId, user.id]);
     if (result.rows[0]) return result.rows[0];
+    if (explicitId) {
+      const error = new Error('workspace_not_found');
+      error.statusCode = 404;
+      throw error;
+    }
   }
   const fallback = await pool.query('SELECT * FROM workspaces WHERE owner_user_id = $1 AND archived = false ORDER BY id = $2 DESC, name, id LIMIT 1', [user.id, user.agent_id]);
   return fallback.rows[0] || null;
@@ -464,6 +476,35 @@ async function createSession(userId, req, res) {
   ];
   if (isSecureRequest(req)) cookieParts.push('Secure');
   res.setHeader('Set-Cookie', cookieParts.join('; '));
+}
+
+function clientIp(req) {
+  return String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
+}
+
+function loginThrottleKey(req, login) {
+  return clientIp(req) + ':' + normalizeLogin(login || '');
+}
+
+function checkLoginThrottle(req, login) {
+  const record = failedLogins.get(loginThrottleKey(req, login));
+  if (record && record.lockedUntil > Date.now()) {
+    const error = new Error('too_many_attempts');
+    error.statusCode = 429;
+    throw error;
+  }
+}
+
+function recordLoginAttempt(req, login, ok) {
+  const key = loginThrottleKey(req, login);
+  if (ok) {
+    failedLogins.delete(key);
+    return;
+  }
+  const current = failedLogins.get(key) || { count: 0, lockedUntil: 0 };
+  const count = current.count + 1;
+  const lockedUntil = count >= 5 ? Date.now() + Math.min(15 * 60 * 1000, 30 * 1000 * (count - 4)) : 0;
+  failedLogins.set(key, { count, lockedUntil });
 }
 
 async function destroySession(req, res) {
@@ -829,7 +870,7 @@ function generateWorkflowReply(workspace, message, agentFiles) {
 
   if (intent === 'task') {
     const title = String(message).replace(/создай|сделай|задачу|task/gi, '').trim() || 'Новая задача';
-    if (!workspace.tasks.some((task) => task.title.toLowerCase() === title.toLowerCase())) {
+    if (workspace.mode === 'execute' && !workspace.tasks.some((task) => task.title.toLowerCase() === title.toLowerCase())) {
       addTask(workspace, title, 'Создано из чата рабочего агента.');
     }
     if (workspace.mode === 'execute') return 'Готово: задача «' + title + '» добавлена. ' + agentTone;
@@ -982,7 +1023,7 @@ function tryWorkflowAction(workspace, text, reply) {
   const lower = String(text).toLowerCase();
   if (/поруч|мисси|mission|план|исслед|проанализ|подготов|manus/.test(lower)) return;
   if (!(/создай|сделай|задач|task/.test(lower))) return;
-  if (!/добавлен|готово|могу/.test(String(reply).toLowerCase())) return;
+  if (!/добавлен|готово/.test(String(reply).toLowerCase())) return;
   const title = String(text).replace(/создай|сделай|задачу|task/gi, '').trim() || 'Новая задача';
   if (!workspace.tasks.some((task) => task.title.toLowerCase() === title.toLowerCase())) {
     addTask(workspace, title, 'Создано из чата рабочего агента.');
@@ -1090,17 +1131,20 @@ async function handleAgents(req, res, agentId) {
 async function handleLogin(req, res) {
   try {
     const body = await readBody(req);
+    checkLoginThrottle(req, body.login);
     const user = await getUserByLogin(body.login);
     const password = String(body.password || '');
     if (!user || !verifyPassword(password, user.password)) {
+      recordLoginAttempt(req, body.login, false);
       sendJson(res, 401, { error: 'invalid_credentials' });
       return;
     }
+    recordLoginAttempt(req, body.login, true);
     if (shouldUpgradePasswordHash(user.password)) {
       await pool.query('UPDATE users SET password = $1 WHERE id = $2', [hashPassword(password), user.id]);
     }
     await createSession(user.id, req, res);
-    const workspace = await getWorkspaceForUser(user, user.agent_id);
+    const workspace = await getWorkspaceForUser(user);
     const agents = await getWorkspacesForUser(user.id);
     sendJson(res, 200, {
       user: { id: user.id, name: user.name, title: user.title, agentId: user.agent_id },
@@ -1108,7 +1152,7 @@ async function handleLogin(req, res) {
       agents: agents
     });
   } catch (error) {
-    sendError(res, 400, 'invalid_json', error);
+    sendError(res, error.statusCode || 400, error.message || 'invalid_json', error);
   }
 }
 
@@ -1224,7 +1268,12 @@ async function main() {
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://' + (req.headers.host || 'localhost'));
     const pathname = url.pathname;
-    setCorsHeaders(res);
+    setCorsHeaders(req, res);
+
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && !originAllowed(req)) {
+      sendJson(res, 403, { error: 'forbidden_origin' });
+      return;
+    }
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204);
@@ -1240,6 +1289,13 @@ async function main() {
     }
     if (pathname === '/api/users' && req.method === 'GET') {
       asyncHandler(req, res, async () => {
+        if (process.env.DEMO_USERS_PUBLIC !== 'true') {
+          const user = await getSessionUser(req);
+          if (!user) {
+            sendJson(res, 401, { error: 'unauthorized' });
+            return;
+          }
+        }
         const result = await pool.query('SELECT id, name, title, agent_id FROM users ORDER BY id');
         sendJson(res, 200, result.rows.map((row) => ({ id: row.id, name: row.name, title: row.title, agentId: row.agent_id })) );
       });
