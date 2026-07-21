@@ -1116,7 +1116,12 @@ async function main() {
       return;
     }
 
-    if (pathname === '/api/health' && req.method === 'GET') return sendJson(res, 200, { ok: true });
+    if (pathname === '/api/health' && req.method === 'GET') {
+      return sendJson(res, 200, {
+        ok: true,
+        imageGenerationConfigured: Boolean(OPENAI_API_KEY)
+      });
+    }
     if (pathname === '/api/users' && req.method === 'GET') {
       asyncHandler(req, res, async () => {
         const result = await pool.query('SELECT id, name, title, agent_id FROM users ORDER BY id');
