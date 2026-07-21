@@ -91,6 +91,7 @@ function seedWorkspace(userName, mode, quickActions, tasks, messages, missions, 
       name: '',
       role: '',
       instructions: '',
+      memoryNotes: [],
       setupDone: false
     }
   };
@@ -261,7 +262,8 @@ async function initDb() {
     ]),
     'sales-agent'
   ]);
-  await pool.query("UPDATE workspaces SET agent_config = jsonb_build_object('name', '', 'role', '', 'instructions', '', 'setupDone', false) WHERE agent_config = '{}'::jsonb");
+  await pool.query("UPDATE workspaces SET agent_config = jsonb_build_object('name', '', 'role', '', 'instructions', '', 'memoryNotes', '[]'::jsonb, 'setupDone', false) WHERE agent_config = '{}'::jsonb");
+  await pool.query("UPDATE workspaces SET agent_config = jsonb_set(agent_config, '{memoryNotes}', '[]'::jsonb, true) WHERE NOT (agent_config ? 'memoryNotes')");
   await pool.query('UPDATE workspaces w SET owner_user_id = u.id FROM users u WHERE w.owner_user_id IS NULL AND u.agent_id = w.id');
 }
 
@@ -437,7 +439,7 @@ function rowToWorkspace(row) {
     missions: row.missions || [],
     artifacts: row.artifacts || [],
     ownerUserId: row.owner_user_id || null,
-    agentConfig: row.agent_config || { name: '', role: '', instructions: '', setupDone: false }
+    agentConfig: row.agent_config || { name: '', role: '', instructions: '', memoryNotes: [], setupDone: false }
   };
 }
 
@@ -621,6 +623,7 @@ async function createWorkspaceForUser(user, body = {}) {
       name: name,
       role: role,
       instructions: instructions,
+      memoryNotes: [],
       setupDone: Boolean(name || role || instructions)
     }
   };
@@ -1018,6 +1021,7 @@ async function buildImageArtifact(workspace, prompt, agentFiles) {
 
 function buildOpenClawPrompt(workspace, agentFiles, userText) {
   const agentConfig = workspace.agentConfig || {};
+  const memoryNotes = normalizeMemoryNotes(agentConfig.memoryNotes);
   return [
     agentFiles.soul || 'Ты личный рабочий агент сотрудника компании.',
     agentConfig.name ? 'Имя агента: ' + agentConfig.name : '',
@@ -1026,6 +1030,7 @@ function buildOpenClawPrompt(workspace, agentFiles, userText) {
     agentFiles.user ? 'Профиль сотрудника:\n' + agentFiles.user : '',
     agentFiles.workflow ? 'Workflow:\n' + agentFiles.workflow : '',
     agentFiles.memory ? 'Память:\n' + agentFiles.memory : '',
+    memoryNotes.length ? 'Память рабочего пространства:\n' + memoryNotes.map((note, index) => (index + 1) + '. ' + note.text).join('\n') : '',
     'Текущий режим: ' + workspace.mode + '.',
     'Активные миссии: ' + JSON.stringify((workspace.missions || []).slice(0, 3)),
     'Последние артефакты: ' + JSON.stringify((workspace.artifacts || []).slice(0, 3).map(artifactPromptSummary)),
@@ -1038,6 +1043,36 @@ function buildOpenClawPrompt(workspace, agentFiles, userText) {
 function getAgentDisplayName(workspace) {
   const agentConfig = workspace.agentConfig || {};
   return agentConfig.name || ('Агент ' + workspace.name);
+}
+
+function normalizeMemoryNotes(value) {
+  return Array.isArray(value)
+    ? value
+      .map((item) => {
+        if (typeof item === 'string') return { text: item.trim(), createdAt: '' };
+        return {
+          text: String(item && item.text ? item.text : '').trim(),
+          createdAt: String(item && item.createdAt ? item.createdAt : '')
+        };
+      })
+      .filter((item) => item.text)
+      .slice(-20)
+    : [];
+}
+
+function extractMemoryNote(text) {
+  const value = String(text || '').trim();
+  const match = value.match(/^(?:запомни|запиши в память|сохрани в память|remember)[:\s,-]+([\s\S]+)$/i);
+  return match ? match[1].trim().slice(0, 500) : '';
+}
+
+function rememberWorkspaceNote(workspace, note) {
+  const agentConfig = workspace.agentConfig || {};
+  const notes = normalizeMemoryNotes(agentConfig.memoryNotes);
+  if (!notes.some((item) => item.text.toLowerCase() === note.toLowerCase())) {
+    notes.push({ text: note, createdAt: new Date().toISOString() });
+  }
+  workspace.agentConfig = { ...agentConfig, memoryNotes: notes.slice(-20) };
 }
 
 function safeFallbackReply(workspace, intent) {
@@ -1140,6 +1175,11 @@ async function askOpenClawGateway(workspace, userText, agentFiles) {
 
 async function answerWorkspaceMessage(workspace, userText, agentFiles) {
   const intent = extractIntent(userText);
+  const memoryNote = extractMemoryNote(userText);
+  if (memoryNote) {
+    rememberWorkspaceNote(workspace, memoryNote);
+    return { text: 'Запомнил: ' + memoryNote };
+  }
   if (intent === 'task' && workspace.mode === 'execute') {
     const title = String(userText).replace(/создай|сделай|задачу|task/gi, '').trim() || 'Новая задача';
     if (!workspace.tasks.some((task) => task.title.toLowerCase() === title.toLowerCase())) {
@@ -1219,6 +1259,7 @@ async function handleAgentSettings(req, res) {
     if (name) ctx.workspace.name = name;
     ctx.workspace.title = role || 'Личный рабочий агент';
     ctx.workspace.agentConfig = {
+      ...(ctx.workspace.agentConfig || {}),
       name: name,
       role: role,
       instructions: instructions,
@@ -1239,7 +1280,7 @@ async function handleWorkspaceReset(req, res) {
   ctx.workspace.messages = [];
   ctx.workspace.missions = [];
   ctx.workspace.artifacts = [];
-  ctx.workspace.agentConfig = { name: '', role: '', instructions: '', setupDone: false };
+  ctx.workspace.agentConfig = { name: '', role: '', instructions: '', memoryNotes: [], setupDone: false };
   ctx.workspace.mode = 'approve';
   await saveWorkspace(ctx.workspace);
   sendJson(res, 200, { workspace: ctx.workspace });

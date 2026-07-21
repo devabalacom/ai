@@ -19,7 +19,7 @@ const fallbackWorkspaces = {
     quickActions: ['Найди свежую информацию в интернете', 'Сгенерируй изображение для ответа', 'Запусти поручение: разобрать тикет', 'Покажи статус поручений'],
     tasks: [],
     messages: [],
-    agentConfig: { name: '', role: '', instructions: '', setupDone: false },
+    agentConfig: { name: '', role: '', instructions: '', memoryNotes: [], setupDone: false },
     missions: [],
     artifacts: []
   },
@@ -32,7 +32,7 @@ const fallbackWorkspaces = {
     quickActions: ['Найди свежую информацию в интернете', 'Сгенерируй изображение для клиента', 'Запусти поручение: подготовить follow-up', 'Покажи статус поручений'],
     tasks: [],
     messages: [],
-    agentConfig: { name: '', role: '', instructions: '', setupDone: false },
+    agentConfig: { name: '', role: '', instructions: '', memoryNotes: [], setupDone: false },
     missions: [],
     artifacts: []
   }
@@ -997,7 +997,7 @@ async function createAgent(name) {
       missions: [],
       artifacts: [],
       ownerUserId: state.currentUser.id,
-      agentConfig: { name: safeName, role: '', instructions: '', setupDone: true }
+      agentConfig: { name: safeName, role: '', instructions: '', memoryNotes: [], setupDone: true }
     };
     state.localWorkspaces[workspace.id] = workspace;
     state.agents = [...state.agents, workspace];
@@ -1193,6 +1193,7 @@ async function saveAgentSettings() {
     workspace.name = String(payload.name || '').trim() || workspace.name;
     workspace.title = String(payload.role || '').trim() || 'Личный рабочий агент';
     workspace.agentConfig = {
+      ...(workspace.agentConfig || {}),
       name: String(payload.name || '').trim(),
       role: String(payload.role || '').trim(),
       instructions: String(payload.instructions || '').trim(),
@@ -1218,7 +1219,7 @@ async function resetWorkspace() {
     workspace.messages = [];
     workspace.missions = [];
     workspace.artifacts = [];
-    workspace.agentConfig = { name: '', role: '', instructions: '', setupDone: false };
+    workspace.agentConfig = { name: '', role: '', instructions: '', memoryNotes: [], setupDone: false };
     workspace.mode = 'approve';
     state.workspace = workspace;
     persistLocal();
