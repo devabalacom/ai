@@ -17,12 +17,14 @@ const WORKFLOW_PROVIDER = process.env.WORKFLOW_PROVIDER || 'openclaw';
 const OPENCLAW_GATEWAY_URL = process.env.OPENCLAW_GATEWAY_URL || '';
 const OPENCLAW_GATEWAY_TOKEN = process.env.OPENCLAW_GATEWAY_TOKEN || '';
 const OPENCLAW_GATEWAY_PASSWORD = process.env.OPENCLAW_GATEWAY_PASSWORD || '';
+const OPENCLAW_GATEWAY_TIMEOUT_MS = Number(process.env.OPENCLAW_GATEWAY_TIMEOUT_MS || 120000);
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1';
 const OPENAI_IMAGE_SIZE = process.env.OPENAI_IMAGE_SIZE || '1024x1024';
 const AGENTS_DIR = path.join(ROOT, 'agents');
 let gatewayConfigWarned = false;
 let gatewayLastError = '';
+let gatewayLastCheckedAt = '';
 const failedLogins = new Map();
 
 if (!DATABASE_URL) {
@@ -1132,7 +1134,7 @@ async function askOpenClawGateway(workspace, userText, agentFiles) {
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 20000);
+  const timeoutId = setTimeout(() => controller.abort(), OPENCLAW_GATEWAY_TIMEOUT_MS);
   const headers = { 'Content-Type': 'application/json' };
   if (OPENCLAW_GATEWAY_TOKEN) {
     headers.Authorization = 'Bearer ' + OPENCLAW_GATEWAY_TOKEN;
@@ -1157,15 +1159,18 @@ async function askOpenClawGateway(workspace, userText, agentFiles) {
     if (!response.ok) {
       console.warn('OpenClaw gateway request failed:', response.status, response.statusText);
       gatewayLastError = 'HTTP ' + response.status;
+      gatewayLastCheckedAt = new Date().toISOString();
       return null;
     }
 
     const data = await response.json();
     const text = extractOpenClawText(data);
     gatewayLastError = '';
+    gatewayLastCheckedAt = new Date().toISOString();
     return text || null;
   } catch (error) {
     gatewayLastError = error && error.message ? error.message : 'request failed';
+    gatewayLastCheckedAt = new Date().toISOString();
     console.warn('OpenClaw gateway request error:', gatewayLastError);
     return null;
   } finally {
@@ -1487,6 +1492,8 @@ async function main() {
         agentBrainAuthenticated: agentBrainAuthenticated(),
         agentBrainReady: agentBrainConfigured() && agentBrainAuthenticated() && !gatewayLastError,
         agentBrainLastError: gatewayLastError,
+        agentBrainLastCheckedAt: gatewayLastCheckedAt,
+        agentBrainTimeoutMs: OPENCLAW_GATEWAY_TIMEOUT_MS,
         imageGenerationConfigured: Boolean(OPENAI_API_KEY)
       });
     }
