@@ -62,6 +62,10 @@ function hashSessionToken(token) {
   return crypto.createHash('sha256').update(String(token)).digest('base64url');
 }
 
+function agentBrainConfigured() {
+  return Boolean(OPENCLAW_GATEWAY_URL && (OPENCLAW_GATEWAY_TOKEN || OPENCLAW_GATEWAY_PASSWORD));
+}
+
 function isSecureRequest(req) {
   return req.headers['x-forwarded-proto'] === 'https' || Boolean(req.socket.encrypted);
 }
@@ -1077,6 +1081,9 @@ function generateWorkflowReply(workspace, message, agentFiles) {
 }
 
 function safeFallbackReply(workspace, intent) {
+  if (!agentBrainConfigured()) {
+    return 'Модель агента сейчас не подключена на сервере, поэтому я не могу дать полноценный умный ответ. Нужно настроить OPENCLAW_GATEWAY_URL и OPENCLAW_GATEWAY_TOKEN или OPENCLAW_GATEWAY_PASSWORD в runtime окружении.';
+  }
   if (intent === 'greeting') return 'Привет. Что нужно сделать?';
   if (intent === 'status') {
     return 'Вижу текущий статус: ' + workspace.tasks.filter((task) => task.status !== 'done').length + ' открытых задач и ' + workspace.messages.length + ' сообщений в истории.';
@@ -1117,9 +1124,9 @@ function extractOpenClawText(payload) {
 }
 
 async function askOpenClawGateway(workspace, userText, agentFiles) {
-  if (!OPENCLAW_GATEWAY_URL) {
+  if (!agentBrainConfigured()) {
     if (!gatewayConfigWarned) {
-      console.warn('OpenClaw gateway disabled: OPENCLAW_GATEWAY_URL is empty');
+      console.warn('OpenClaw gateway disabled: URL or auth token is missing');
       gatewayConfigWarned = true;
     }
     return null;
@@ -1203,6 +1210,9 @@ async function answerWorkspaceMessage(workspace, userText, agentFiles) {
     };
   }
   const reply = await askOpenClawGateway(workspace, userText, agentFiles);
+  if (!reply && !agentBrainConfigured()) {
+    return { text: safeFallbackReply(workspace, intent) };
+  }
   return { text: sanitizeAgentReply(reply || generateWorkflowReply(workspace, userText, agentFiles), workspace, intent) };
 }
 
@@ -1471,6 +1481,7 @@ async function main() {
     if (pathname === '/api/health' && req.method === 'GET') {
       return sendJson(res, 200, {
         ok: true,
+        agentBrainConfigured: agentBrainConfigured(),
         imageGenerationConfigured: Boolean(OPENAI_API_KEY)
       });
     }

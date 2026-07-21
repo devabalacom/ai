@@ -78,6 +78,7 @@ const statusCopy = {
 };
 
 const agentTools = [
+  { id: 'brain', label: 'Модель агента', status: 'проверяем' },
   { id: 'web', label: 'Поиск в интернете', status: 'включен' },
   { id: 'image', label: 'Генерация изображений', status: 'включена' }
 ];
@@ -101,7 +102,7 @@ const state = {
   pendingAgent: false,
   sendingMessage: false,
   failedDraft: null,
-  capabilities: { imageGenerationConfigured: false },
+  capabilities: { agentBrainConfigured: false, imageGenerationConfigured: false },
   currentView: 'chat',
   sidebarCollapsed: window.matchMedia('(max-width: 1100px)').matches
 };
@@ -599,10 +600,11 @@ function renderWorkspace() {
     <button class="quick-chip" type="button" data-quick="${escapeHtml(item)}" title="${escapeHtml(item)}" aria-label="${escapeHtml(item)}">${escapeHtml(quickActionLabel(item))}</button>
   `).join('');
 
-  const tools = agentTools.map((tool) => tool.id === 'image'
-    ? { ...tool, status: state.capabilities.imageGenerationConfigured ? 'включена' : 'не настроена' }
-    : tool
-  );
+  const tools = agentTools.map((tool) => {
+    if (tool.id === 'brain') return { ...tool, status: state.capabilities.agentBrainConfigured ? 'подключена' : 'не настроена' };
+    if (tool.id === 'image') return { ...tool, status: state.capabilities.imageGenerationConfigured ? 'включена' : 'не настроена' };
+    return tool;
+  });
   el.agentTools.innerHTML = tools.map((tool) => `
     <div class="tool-chip" data-tool="${escapeHtml(tool.id)}">
       <strong>${escapeHtml(tool.label)}</strong>
@@ -915,6 +917,7 @@ async function detectBackend() {
     state.apiAvailable = response.ok;
     if (response.ok) {
       const health = await response.json();
+      state.capabilities.agentBrainConfigured = Boolean(health.agentBrainConfigured);
       state.capabilities.imageGenerationConfigured = Boolean(health.imageGenerationConfigured);
     }
   } catch {
