@@ -858,7 +858,6 @@ function isImageRequest(message) {
 }
 
 function generateReply(workspace, message) {
-  const lower = message.toLowerCase();
 
   if (isImageRequest(message)) {
     return {
@@ -866,49 +865,9 @@ function generateReply(workspace, message) {
     };
   }
 
-  if (/поруч|мисси|mission|план|исслед|проанализ|подготов|автоном|manus/.test(lower)) {
-    const goal = message.replace(/создай|запусти|поручение|поручений|миссию|mission|план|агента|manus/gi, '').trim() || message;
-    if (workspace.mode !== 'execute') {
-      return workspace.mode === 'approve'
-        ? `Могу запустить поручение «${goal}». Подтверди, если ок.`
-        : `Могу оформить поручение «${goal}» с планом и готовым материалом.`;
-    }
-    const result = startLocalMission(workspace, goal);
-    return `Запустил поручение: «${result.mission.goal}». Составил план, начал выполнение и положил черновик результата в “Результаты”.`;
-  }
-
-  if (/задач|task|сделай/.test(lower)) {
-    const title = message.replace(/создай|сделай|задачу|task/gi, '').trim() || 'Новая задача';
-    if (workspace.mode === 'execute') {
-      addLocalTask(workspace, title, 'Создано из чата.');
-      return `Готово: задача «${title}» добавлена.`;
-    }
-    return `Могу добавить задачу «${title}». Подтверди, если ок.`;
-  }
-
-  if (/прайс|цена|документ|найди|поиск|интернет|web|сайт/.test(lower)) {
-    return 'Понял. У агента включен поиск в интернете: сначала проверю свежую информацию, потом верну короткий вывод и источники.';
-  }
-
-  if (/статус|блок|риск/.test(lower)) {
-    return 'Вижу текущий статус: есть открытые задачи и один блокер, если он есть в твоей очереди.';
-  }
-
-  if (/привет|hello|hi/.test(lower)) {
-    return workspace.mode === 'answer'
-      ? 'На связи. Пиши вопрос, задачу или короткую команду.'
-      : 'Готов. Могу предложить решение, спланировать шаги или выполнить безопасный сценарий.';
-  }
-
-  if (workspace.mode === 'suggest') {
-    return 'Сначала соберу контекст, потом предложу черновик и только затем действие.';
-  }
-
-  if (workspace.mode === 'execute') {
-    return 'Выполняю безопасный сценарий и фиксирую результат в личном пространстве.';
-  }
-
-  return 'Принял. Могу отвечать, искать, создавать задачи и вести твое личное рабочее пространство.';
+  return {
+    text: 'Сервер сейчас недоступен, поэтому агент не может обратиться к модели, инструментам и рабочему пространству. Проверь подключение к backend и повтори запрос.'
+  };
 }
 
 async function detectBackend() {

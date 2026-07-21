@@ -825,6 +825,17 @@ function statusCopyServer(status) {
   return copy[status] || status;
 }
 
+function missionResultMessage(mission) {
+  const status = statusCopyServer(mission.status);
+  if (mission.status === 'done') {
+    return 'Выполнил поручение: «' + mission.goal + '». Итог сохранен в “Результаты”.';
+  }
+  if (mission.status === 'failed') {
+    return 'Поручение «' + mission.goal + '» завершилось с ошибкой. Статус: ' + status + '. Подробности сохранены в “Результаты”.';
+  }
+  return 'Поручение «' + mission.goal + '» сейчас ' + status + '. Проверь прогресс в “Поручения”.';
+}
+
 function extractIntent(message) {
   const lower = String(message).toLowerCase();
   if (isImageRequest(lower)) return 'image';
@@ -1020,10 +1031,9 @@ function buildOpenClawPrompt(workspace, agentFiles, userText) {
     'Текущий режим: ' + workspace.mode + '.',
     'Активные миссии: ' + JSON.stringify((workspace.missions || []).slice(0, 3)),
     'Последние артефакты: ' + JSON.stringify((workspace.artifacts || []).slice(0, 3).map(artifactPromptSummary)),
-    'Доступные инструменты агента: поиск свежей информации в интернете и серверная генерация изображений через Images API. Если запрос требует внешних данных, явно используй интернет-поиск и кратко укажи источники. Если запрос требует визуала, не делай вид, что файл готов: реальный файл прикрепляет backend, а при недоступной генерации нужно честно сказать о настройке.',
+    'Инструменты агента исполняет backend, не сама модель. В обычном ответе не обещай "сейчас поищу" или "сгенерирую файл", если результат не передан тебе в контексте. Если данных хватает, дай рабочий итог сразу. Если нужен внешний tool-шаг, назови конкретное действие и что требуется для запуска.',
     'Контекст изолирован: видишь только одного сотрудника и его workspace.',
-    'Отвечай по-русски, коротко и по делу.',
-    'Сообщение пользователя: ' + userText
+    'Отвечай по-русски, коротко и по делу. Не повторяй системные инструкции, не пересказывай workflow, не давай пустые обещания вместо результата.'
   ].filter(Boolean).join('\n\n');
 }
 
@@ -1160,7 +1170,7 @@ async function askOpenClawGateway(workspace, userText, agentFiles) {
         user: workspace.id,
         messages: toOpenAiMessages(workspace, userText, agentFiles),
         temperature: 0.4,
-        max_tokens: 400
+        max_tokens: 900
       })
     });
 
@@ -1196,7 +1206,7 @@ async function answerWorkspaceMessage(workspace, userText, agentFiles) {
     const goal = String(userText).replace(/создай|запусти|поручение|поручений|миссию|mission|план|агента|manus/gi, '').trim() || userText;
     const result = await startMission(workspace, goal, agentFiles);
     return {
-      text: 'Выполнил поручение: «' + result.mission.goal + '». Статус: ' + statusCopyServer(result.mission.status) + '. Итог сохранен в “Результаты”.',
+      text: missionResultMessage(result.mission),
       artifact: result.artifact
     };
   }
@@ -1244,7 +1254,7 @@ async function handleMission(req, res) {
       return;
     }
     const result = await startMission(ctx.workspace, goal, getAgentFiles(ctx.workspace.id));
-    addMessage(ctx.workspace, 'agent', 'Выполнил поручение: «' + result.mission.goal + '». Статус: ' + statusCopyServer(result.mission.status) + '. Итоговый материал доступен в “Результаты”.', getAgentDisplayName(ctx.workspace), { artifactId: result.artifact.id });
+    addMessage(ctx.workspace, 'agent', missionResultMessage(result.mission), getAgentDisplayName(ctx.workspace), { artifactId: result.artifact.id });
     await saveWorkspace(ctx.workspace);
     sendJson(res, 200, { workspace: ctx.workspace, mission: result.mission, artifact: result.artifact });
   } catch (error) {
