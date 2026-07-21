@@ -725,6 +725,17 @@ async function detectBackend() {
 }
 
 async function loadUsers() {
+  if (state.apiAvailable) {
+    try {
+      const users = await apiRequest('/api/users', { allowUnauthorized: true });
+      if (Array.isArray(users) && users.length) {
+        state.users = users;
+        return;
+      }
+    } catch {
+      // Keep demo users as a safe fallback for local checks.
+    }
+  }
   state.users = demoUsers;
 }
 

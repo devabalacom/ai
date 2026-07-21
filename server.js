@@ -1119,8 +1119,6 @@ async function main() {
     if (pathname === '/api/health' && req.method === 'GET') return sendJson(res, 200, { ok: true });
     if (pathname === '/api/users' && req.method === 'GET') {
       asyncHandler(req, res, async () => {
-        const ctx = await getAuthenticatedContext(req, res);
-        if (!ctx) return;
         const result = await pool.query('SELECT id, name, title, agent_id FROM users ORDER BY id');
         sendJson(res, 200, result.rows.map((row) => ({ id: row.id, name: row.name, title: row.title, agentId: row.agent_id })) );
       });
