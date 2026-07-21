@@ -102,7 +102,13 @@ const state = {
   pendingAgent: false,
   sendingMessage: false,
   failedDraft: null,
-  capabilities: { agentBrainConfigured: false, imageGenerationConfigured: false },
+  capabilities: {
+    agentBrainConfigured: false,
+    agentBrainAuthenticated: false,
+    agentBrainReady: false,
+    agentBrainLastError: '',
+    imageGenerationConfigured: false
+  },
   currentView: 'chat',
   sidebarCollapsed: window.matchMedia('(max-width: 1100px)').matches
 };
@@ -601,7 +607,14 @@ function renderWorkspace() {
   `).join('');
 
   const tools = agentTools.map((tool) => {
-    if (tool.id === 'brain') return { ...tool, status: state.capabilities.agentBrainConfigured ? 'подключена' : 'не настроена' };
+    if (tool.id === 'brain') {
+      let status = 'не настроена';
+      if (state.capabilities.agentBrainLastError) status = 'ошибка gateway';
+      else if (state.capabilities.agentBrainReady) status = 'готова';
+      else if (state.capabilities.agentBrainConfigured && !state.capabilities.agentBrainAuthenticated) status = 'нет токена';
+      else if (state.capabilities.agentBrainConfigured) status = 'проверяется';
+      return { ...tool, status };
+    }
     if (tool.id === 'image') return { ...tool, status: state.capabilities.imageGenerationConfigured ? 'включена' : 'не настроена' };
     return tool;
   });
@@ -877,6 +890,9 @@ async function detectBackend() {
     if (response.ok) {
       const health = await response.json();
       state.capabilities.agentBrainConfigured = Boolean(health.agentBrainConfigured);
+      state.capabilities.agentBrainAuthenticated = Boolean(health.agentBrainAuthenticated);
+      state.capabilities.agentBrainReady = Boolean(health.agentBrainReady);
+      state.capabilities.agentBrainLastError = String(health.agentBrainLastError || '');
       state.capabilities.imageGenerationConfigured = Boolean(health.imageGenerationConfigured);
     }
   } catch {

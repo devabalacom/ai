@@ -1485,6 +1485,7 @@ async function main() {
         ok: true,
         agentBrainConfigured: agentBrainConfigured(),
         agentBrainAuthenticated: agentBrainAuthenticated(),
+        agentBrainReady: agentBrainConfigured() && agentBrainAuthenticated() && !gatewayLastError,
         agentBrainLastError: gatewayLastError,
         imageGenerationConfigured: Boolean(OPENAI_API_KEY)
       });

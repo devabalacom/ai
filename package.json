@@ -5,7 +5,8 @@
   "description": "Employee-only AI workspace with a small Node backend",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "smoke": "node scripts/agent-smoke.js"
   },
   "dependencies": {
     "pg": "^8.13.1"
