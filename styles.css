@@ -307,11 +307,12 @@ button, input, select {
   grid-template-columns: 220px minmax(0, 1fr);
   gap: 20px;
   align-items: start;
-  transition: grid-template-columns var(--transition);
+  transition: grid-template-columns var(--transition), gap var(--transition);
 }
 
 .dashboard.sidebar-collapsed .control-layout {
-  grid-template-columns: 96px minmax(0, 1fr);
+  grid-template-columns: 0 minmax(0, 1fr);
+  gap: 0;
 }
 
 .side-nav {
@@ -324,11 +325,17 @@ button, input, select {
   background: #111418;
   overflow: hidden;
   z-index: 20;
-  transition: background var(--transition), padding var(--transition), transform var(--transition);
+  transition: background var(--transition), padding var(--transition), transform var(--transition), opacity var(--transition);
 }
 
 .dashboard.sidebar-collapsed .side-nav {
-  padding: 16px 12px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(calc(-100% - 24px));
+}
+
+.dashboard.sidebar-collapsed .sidebar-toggle {
+  display: grid;
 }
 
 .brand-block {
