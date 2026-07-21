@@ -631,7 +631,7 @@ button, input, select {
   gap: 8px;
 }
 
-.mode-chip, .quick-chip, .tool-chip, .task-actions button, .artifact-actions button {
+.mode-chip, .quick-chip, .tool-chip, .task-actions button, .artifact-actions button, .agent-actions button {
   padding: 9px 12px;
   border-radius: var(--radius-md);
   border: 1px solid var(--line);
@@ -683,7 +683,7 @@ button, input, select {
   color: var(--muted);
 }
 
-.quick-chip:hover, .task-actions button:hover, .artifact-actions button:hover {
+.quick-chip:hover, .task-actions button:hover, .artifact-actions button:hover, .agent-actions button:hover {
   border-color: rgba(20, 184, 166, 0.48);
   color: var(--text);
   background: rgba(20, 184, 166, 0.12);
@@ -936,9 +936,45 @@ button, input, select {
   font-weight: 700;
 }
 
-.task-list, .mission-list, .artifact-list, .onboarding-list {
+.task-list, .mission-list, .artifact-list, .onboarding-list, .agent-list {
   display: grid;
   gap: 12px;
+}
+
+.agent-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.agent-item.active {
+  border-color: rgba(20, 184, 166, 0.5);
+  background: rgba(20, 184, 166, 0.12);
+}
+
+.agent-item strong {
+  display: block;
+  font-size: 14px;
+}
+
+.agent-item p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.agent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 .empty-state {
@@ -1362,9 +1398,14 @@ button, input, select {
   .quick-chip,
   .tool-chip,
   .task-actions button,
-  .artifact-actions button {
+  .artifact-actions button,
+  .agent-actions button {
     width: 100%;
     justify-content: center;
+  }
+
+  .agent-item {
+    grid-template-columns: 1fr;
   }
 
   .message-meta {

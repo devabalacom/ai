@@ -177,6 +177,8 @@ async function initDb() {
   await pool.query("ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS missions jsonb NOT NULL DEFAULT '[]'::jsonb");
   await pool.query("ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS artifacts jsonb NOT NULL DEFAULT '[]'::jsonb");
   await pool.query("ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS agent_config jsonb NOT NULL DEFAULT '{}'::jsonb");
+  await pool.query("ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS owner_user_id text");
+  await pool.query("ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS archived boolean NOT NULL DEFAULT false");
   await pool.query(`
     CREATE TABLE IF NOT EXISTS sessions (
       token text PRIMARY KEY,
@@ -242,6 +244,7 @@ async function initDb() {
     'sales-agent'
   ]);
   await pool.query("UPDATE workspaces SET agent_config = jsonb_build_object('name', '', 'role', '', 'instructions', '', 'setupDone', false) WHERE agent_config = '{}'::jsonb");
+  await pool.query('UPDATE workspaces w SET owner_user_id = u.id FROM users u WHERE w.owner_user_id IS NULL AND u.agent_id = w.id');
 }
 
 function parseCookies(req) {
@@ -372,6 +375,21 @@ async function getWorkspaceByAgentId(agentId) {
   return result.rows[0] || null;
 }
 
+async function getWorkspacesForUser(userId) {
+  const result = await pool.query('SELECT * FROM workspaces WHERE owner_user_id = $1 AND archived = false ORDER BY name, id', [userId]);
+  return result.rows.map(rowToWorkspace);
+}
+
+async function getWorkspaceForUser(user, workspaceId) {
+  const requestedId = String(workspaceId || user.agent_id || '').trim();
+  if (requestedId) {
+    const result = await pool.query('SELECT * FROM workspaces WHERE id = $1 AND owner_user_id = $2 AND archived = false LIMIT 1', [requestedId, user.id]);
+    if (result.rows[0]) return result.rows[0];
+  }
+  const fallback = await pool.query('SELECT * FROM workspaces WHERE owner_user_id = $1 AND archived = false ORDER BY id = $2 DESC, name, id LIMIT 1', [user.id, user.agent_id]);
+  return fallback.rows[0] || null;
+}
+
 function rowToWorkspace(row) {
   return {
     id: row.id,
@@ -384,6 +402,7 @@ function rowToWorkspace(row) {
     messages: row.messages || [],
     missions: row.missions || [],
     artifacts: row.artifacts || [],
+    ownerUserId: row.owner_user_id || null,
     agentConfig: row.agent_config || { name: '', role: '', instructions: '', setupDone: false }
   };
 }
@@ -474,14 +493,16 @@ async function getAuthenticatedContext(req, res) {
     sendJson(res, 401, { error: 'unauthorized' });
     return null;
   }
-  const workspaceRow = await getWorkspaceByAgentId(user.agent_id);
+  const workspaceRow = await getWorkspaceForUser(user, req.headers['x-agent-id']);
   if (!workspaceRow) {
     sendJson(res, 404, { error: 'workspace_not_found' });
     return null;
   }
+  const agents = await getWorkspacesForUser(user.id);
   return {
     user: { id: user.id, name: user.name, title: user.title, agentId: user.agent_id },
-    workspace: rowToWorkspace(workspaceRow)
+    workspace: rowToWorkspace(workspaceRow),
+    agents: agents
   };
 }
 
@@ -505,6 +526,56 @@ function addMessage(workspace, role, text, author, extra = {}) {
     ...extra
   });
   workspace.messages = workspace.messages.slice(-50);
+}
+
+function defaultQuickActions() {
+  return [
+    'Найди свежую информацию в интернете',
+    'Сгенерируй изображение',
+    'Запусти поручение: подготовить результат',
+    'Покажи статус поручений'
+  ];
+}
+
+async function createWorkspaceForUser(user, body = {}) {
+  const name = String(body.name || '').trim().slice(0, 80) || 'Новый агент';
+  const role = String(body.role || '').trim().slice(0, 160);
+  const instructions = String(body.instructions || '').trim().slice(0, 2000);
+  const id = user.id + '-' + crypto.randomUUID();
+  const workspace = {
+    id: id,
+    name: name,
+    title: role || 'Личный рабочий агент',
+    mode: 'approve',
+    model: 'Рабочий агент',
+    quickActions: defaultQuickActions(),
+    tasks: [],
+    messages: [],
+    missions: [],
+    artifacts: [],
+    ownerUserId: user.id,
+    agentConfig: {
+      name: name,
+      role: role,
+      instructions: instructions,
+      setupDone: Boolean(name || role || instructions)
+    }
+  };
+  await pool.query('INSERT INTO workspaces (id, name, title, mode, model, quick_actions, tasks, messages, missions, artifacts, agent_config, owner_user_id, archived) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, false)', [
+    workspace.id,
+    workspace.name,
+    workspace.title,
+    workspace.mode,
+    workspace.model,
+    JSON.stringify(workspace.quickActions),
+    JSON.stringify(workspace.tasks),
+    JSON.stringify(workspace.messages),
+    JSON.stringify(workspace.missions),
+    JSON.stringify(workspace.artifacts),
+    JSON.stringify(workspace.agentConfig),
+    workspace.ownerUserId
+  ]);
+  return workspace;
 }
 
 function buildMissionFromGoal(goal) {
@@ -946,6 +1017,8 @@ async function handleAgentSettings(req, res) {
     const name = String(body.name || '').trim().slice(0, 80);
     const role = String(body.role || '').trim().slice(0, 160);
     const instructions = String(body.instructions || '').trim().slice(0, 2000);
+    if (name) ctx.workspace.name = name;
+    ctx.workspace.title = role || 'Личный рабочий агент';
     ctx.workspace.agentConfig = {
       name: name,
       role: role,
@@ -973,6 +1046,47 @@ async function handleWorkspaceReset(req, res) {
   sendJson(res, 200, { workspace: ctx.workspace });
 }
 
+async function handleAgents(req, res, agentId) {
+  const user = await getSessionUser(req);
+  if (!user) {
+    sendJson(res, 401, { error: 'unauthorized' });
+    return;
+  }
+  try {
+    if (req.method === 'GET') {
+      const agents = await getWorkspacesForUser(user.id);
+      sendJson(res, 200, { agents: agents });
+      return;
+    }
+    if (req.method === 'POST' && !agentId) {
+      const body = await readBody(req);
+      const workspace = await createWorkspaceForUser(user, body);
+      const agents = await getWorkspacesForUser(user.id);
+      sendJson(res, 200, { workspace: workspace, agents: agents });
+      return;
+    }
+    if (req.method === 'DELETE' && agentId) {
+      const agents = await getWorkspacesForUser(user.id);
+      if (agents.length <= 1) {
+        sendJson(res, 400, { error: 'last_agent_cannot_be_archived' });
+        return;
+      }
+      const result = await pool.query('UPDATE workspaces SET archived = true WHERE id = $1 AND owner_user_id = $2 AND archived = false RETURNING id', [agentId, user.id]);
+      if (!result.rows[0]) {
+        sendJson(res, 404, { error: 'agent_not_found' });
+        return;
+      }
+      const remaining = await getWorkspacesForUser(user.id);
+      sendJson(res, 200, { agents: remaining, workspace: remaining[0] || null });
+      return;
+    }
+    sendJson(res, 405, { error: 'method_not_allowed' });
+  } catch (error) {
+    console.error('Failed to handle /api/agents:', error);
+    sendError(res, 500, 'agents_failed', error);
+  }
+}
+
 async function handleLogin(req, res) {
   try {
     const body = await readBody(req);
@@ -986,10 +1100,12 @@ async function handleLogin(req, res) {
       await pool.query('UPDATE users SET password = $1 WHERE id = $2', [hashPassword(password), user.id]);
     }
     await createSession(user.id, req, res);
-    const workspace = await getWorkspaceByAgentId(user.agent_id);
+    const workspace = await getWorkspaceForUser(user, user.agent_id);
+    const agents = await getWorkspacesForUser(user.id);
     sendJson(res, 200, {
       user: { id: user.id, name: user.name, title: user.title, agentId: user.agent_id },
-      workspace: rowToWorkspace(workspace)
+      workspace: rowToWorkspace(workspace),
+      agents: agents
     });
   } catch (error) {
     sendError(res, 400, 'invalid_json', error);
@@ -1133,12 +1249,15 @@ async function main() {
       asyncHandler(req, res, async () => {
         const ctx = await getAuthenticatedContext(req, res);
         if (!ctx) return;
-        sendJson(res, 200, { user: ctx.user, workspace: ctx.workspace });
+        sendJson(res, 200, { user: ctx.user, workspace: ctx.workspace, agents: ctx.agents });
       });
       return;
     }
     if (pathname === '/api/login' && req.method === 'POST') { asyncHandler(req, res, () => handleLogin(req, res)); return; }
     if (pathname === '/api/logout' && req.method === 'POST') { asyncHandler(req, res, () => handleLogout(req, res)); return; }
+    if (pathname === '/api/agents' && (req.method === 'GET' || req.method === 'POST')) { asyncHandler(req, res, () => handleAgents(req, res)); return; }
+    const agentMatch = pathname.match(/^\/api\/agents\/([^/]+)$/);
+    if (agentMatch && req.method === 'DELETE') { asyncHandler(req, res, () => handleAgents(req, res, decodeURIComponent(agentMatch[1]))); return; }
     if (pathname === '/api/message' && req.method === 'POST') { asyncHandler(req, res, () => handleMessage(req, res)); return; }
     if (pathname === '/api/missions' && req.method === 'POST') { asyncHandler(req, res, () => handleMission(req, res)); return; }
     if (pathname === '/api/agent-settings' && req.method === 'POST') { asyncHandler(req, res, () => handleAgentSettings(req, res)); return; }

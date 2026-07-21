@@ -72,6 +72,7 @@
           </div>
           <nav class="nav-list" aria-label="Разделы">
             <a class="active" href="#workspace-grid" data-view="chat" data-short="Чат" title="Чат">Чат</a>
+            <a href="#agent-list" data-view="agents" data-short="Агенты" title="Агенты">Агенты</a>
             <a href="#mission-list" data-view="missions" data-short="Поруч." title="Поручения">Поручения</a>
             <a href="#task-list" data-view="tasks" data-short="Задачи" title="Задачи">Задачи</a>
             <a href="#artifact-list" data-view="artifacts" data-short="Матер." title="Готовые материалы">Готовые материалы</a>
@@ -129,6 +130,17 @@
                     <button class="primary-btn" id="new-mission-btn" type="button">Новое поручение</button>
                     <button class="ghost-btn" id="new-task-btn" type="button">Новая задача</button>
                   </div>
+                </section>
+
+                <section class="panel view-panel" data-panel="agents" aria-label="Агенты">
+                  <div class="panel-head slim">
+                    <div>
+                      <div class="panel-title">Мои агенты</div>
+                      <div class="panel-subtitle">Создавайте агентов под разные роли и задачи</div>
+                    </div>
+                    <button class="primary-btn" id="new-agent-btn" type="button">Создать</button>
+                  </div>
+                  <div class="agent-list" id="agent-list" role="list"></div>
                 </section>
 
                 <section class="panel view-panel" data-panel="missions" aria-label="Поручения">

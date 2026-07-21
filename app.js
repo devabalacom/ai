@@ -89,10 +89,12 @@ const state = {
   apiAvailable: false,
   currentUser: null,
   workspace: null,
+  agents: [],
   users: demoUsers,
   localWorkspaces: structuredClone(fallbackWorkspaces),
   pendingTask: false,
   pendingMission: false,
+  pendingAgent: false,
   sendingMessage: false,
   failedDraft: null,
   currentView: 'chat',
@@ -133,6 +135,8 @@ const el = {
   artifactList: document.getElementById('artifact-list'),
   workflowGrid: document.getElementById('workflow-grid'),
   onboardingList: document.getElementById('onboarding-list'),
+  agentList: document.getElementById('agent-list'),
+  newAgentBtn: document.getElementById('new-agent-btn'),
   newTaskBtn: document.getElementById('new-task-btn'),
   newMissionBtn: document.getElementById('new-mission-btn'),
   agentSettings: document.getElementById('agent-settings'),
@@ -155,6 +159,8 @@ function persistLocal() {
   if (state.apiAvailable) return;
   localStorage.setItem(STORAGE_KEY, JSON.stringify({
     currentUserId: state.currentUser?.id ?? null,
+    currentWorkspaceId: state.workspace?.id ?? null,
+    agents: state.agents,
     workspaces: state.localWorkspaces
   }));
 }
@@ -165,9 +171,11 @@ function restoreLocal() {
   try {
     const saved = JSON.parse(raw);
     if (saved?.workspaces) state.localWorkspaces = saved.workspaces;
+    if (Array.isArray(saved?.agents)) state.agents = saved.agents;
     if (saved?.currentUserId) {
       state.currentUser = state.users.find((user) => user.id === saved.currentUserId) ?? null;
-      state.workspace = state.currentUser ? state.localWorkspaces[state.currentUser.agentId] ?? null : null;
+      const workspaceId = saved.currentWorkspaceId || state.currentUser?.agentId;
+      state.workspace = state.currentUser ? state.localWorkspaces[workspaceId] ?? state.localWorkspaces[state.currentUser.agentId] ?? null : null;
     }
   } catch {
     localStorage.removeItem(STORAGE_KEY);
@@ -177,9 +185,11 @@ function restoreLocal() {
 function recoverUnauthorized() {
   state.currentUser = null;
   state.workspace = null;
+  state.agents = [];
   state.sendingMessage = false;
   state.pendingTask = false;
   state.pendingMission = false;
+  state.pendingAgent = false;
   if (el.authCard && el.dashboard) render();
 }
 
@@ -190,6 +200,7 @@ async function apiRequest(path, options = {}) {
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
+      ...(state.workspace?.id ? { 'X-Agent-Id': state.workspace.id } : {}),
       ...headers
     },
     ...fetchOptions
@@ -208,6 +219,13 @@ async function apiRequest(path, options = {}) {
 
 function currentWorkspace() {
   return state.workspace || (state.currentUser ? state.localWorkspaces[state.currentUser.agentId] : null);
+}
+
+function replaceAgentInState(workspace) {
+  if (!workspace?.id) return;
+  state.agents = state.agents.some((agent) => agent.id === workspace.id)
+    ? state.agents.map((agent) => agent.id === workspace.id ? workspace : agent)
+    : [...state.agents, workspace];
 }
 
 function escapeHtml(value) {
@@ -383,6 +401,19 @@ function openTaskPrompt() {
   el.promptModal.showModal();
 }
 
+function openAgentPrompt() {
+  el.promptTitle.textContent = 'Новый агент';
+  el.promptLabel.textContent = 'Как назвать агента?';
+  el.promptInput.placeholder = 'Например: Агент по продажам';
+  el.promptInput.value = '';
+  el.promptHelp.textContent = 'После создания откроются настройки роли, правил и поведения агента.';
+  el.promptSubmit.textContent = 'Создать агента';
+  state.pendingTask = false;
+  state.pendingMission = false;
+  state.pendingAgent = true;
+  el.promptModal.showModal();
+}
+
 function renderViewState() {
   el.navLinks.forEach((link) => {
     link.classList.toggle('active', link.dataset.view === state.currentView);
@@ -426,6 +457,28 @@ function renderUserSelect() {
   if (el.backendStatus) el.backendStatus.textContent = backendStatusText();
 }
 
+function renderAgentList(workspace) {
+  if (!el.agentList) return;
+  const agents = state.agents.length ? state.agents : (workspace ? [workspace] : []);
+  el.agentList.innerHTML = agents.length ? agents.map((agent) => {
+    const config = agent.agentConfig || {};
+    const active = workspace && agent.id === workspace.id;
+    const title = config.role || agent.title || 'Личный рабочий агент';
+    return `
+      <article class="agent-item ${active ? 'active' : ''}">
+        <div>
+          <strong>${escapeHtml(agentDisplayName(agent))}</strong>
+          <p>${escapeHtml(title)}</p>
+        </div>
+        <div class="agent-actions">
+          <button type="button" data-agent-select="${escapeHtml(agent.id)}">${active ? 'Открыт' : 'Открыть'}</button>
+          <button type="button" data-agent-archive="${escapeHtml(agent.id)}" ${agents.length <= 1 ? 'disabled' : ''}>Архив</button>
+        </div>
+      </article>
+    `;
+  }).join('') : '<div class="empty-state"><strong>Агентов пока нет</strong><p>Создайте первого агента под рабочую роль.</p></div>';
+}
+
 function renderWorkspace() {
   const workspace = currentWorkspace();
   if (!state.currentUser || !workspace) return;
@@ -436,8 +489,8 @@ function renderWorkspace() {
   el.profileName.textContent = state.currentUser.name;
   const agentConfig = workspace.agentConfig || {};
   el.profileMeta.textContent = `${state.currentUser.title} · ${agentDisplayName(workspace)}`;
-  el.workspaceTitle.textContent = `${workspace.name} · ${workspace.title}`;
-  el.workspaceHint.textContent = 'Личный чат, поручения, задачи и готовые материалы.';
+  el.workspaceTitle.textContent = `${agentDisplayName(workspace)} · ${workspace.title}`;
+  el.workspaceHint.textContent = 'Выбранный агент: отдельный чат, задачи, поручения и материалы.';
   const openTasks = workspace.tasks.filter((task) => task.status !== 'done').length;
   const runningMissions = (workspace.missions || []).filter((mission) => mission.status === 'running').length;
   const artifactCount = (workspace.artifacts || []).length;
@@ -592,6 +645,7 @@ function renderWorkspace() {
       </div>
     </div>
   `).join('');
+  renderAgentList(workspace);
   renderViewState();
 }
 
@@ -745,6 +799,7 @@ async function loadSession() {
       const me = await apiRequest('/api/me', { allowUnauthorized: true });
       state.currentUser = me.user;
       state.workspace = me.workspace;
+      state.agents = Array.isArray(me.agents) ? me.agents : (me.workspace ? [me.workspace] : []);
       return Boolean(state.currentUser && state.workspace);
     } catch (error) {
       if (error.status !== 401) throw error;
@@ -763,6 +818,8 @@ async function loginUser(login, password) {
     });
     state.currentUser = result.user;
     state.workspace = result.workspace;
+    state.agents = Array.isArray(result.agents) ? result.agents : (result.workspace ? [result.workspace] : []);
+    replaceAgentInState(state.workspace);
     return;
   }
 
@@ -770,6 +827,8 @@ async function loginUser(login, password) {
   if (!user || user.password !== password) throw new Error('invalid_credentials');
   state.currentUser = user;
   state.workspace = structuredClone(state.localWorkspaces[user.agentId]);
+  state.agents = Object.values(state.localWorkspaces).filter((workspace) => workspace.ownerUserId === user.id || workspace.id === user.agentId);
+  replaceAgentInState(state.workspace);
   persistLocal();
 }
 
@@ -783,7 +842,66 @@ async function logoutUser() {
   }
   state.currentUser = null;
   state.workspace = null;
+  state.agents = [];
   if (!state.apiAvailable) localStorage.removeItem(STORAGE_KEY);
+  render();
+}
+
+async function selectAgent(agentId) {
+  const agent = state.agents.find((item) => item.id === agentId);
+  if (!agent) return;
+  state.workspace = agent;
+  state.currentView = 'chat';
+  render();
+}
+
+async function createAgent(name) {
+  const safeName = String(name || '').trim();
+  if (!safeName || !state.currentUser) return;
+  if (state.apiAvailable) {
+    const result = await apiRequest('/api/agents', {
+      method: 'POST',
+      body: JSON.stringify({ name: safeName })
+    });
+    state.agents = Array.isArray(result.agents) ? result.agents : [];
+    state.workspace = result.workspace;
+  } else {
+    const workspace = {
+      id: state.currentUser.id + '-' + newId(),
+      name: safeName,
+      title: 'Личный рабочий агент',
+      mode: 'approve',
+      model: 'Рабочий агент',
+      quickActions: ['Найди свежую информацию в интернете', 'Сгенерируй изображение', 'Запусти поручение: подготовить результат', 'Покажи статус поручений'],
+      tasks: [],
+      messages: [],
+      missions: [],
+      artifacts: [],
+      ownerUserId: state.currentUser.id,
+      agentConfig: { name: safeName, role: '', instructions: '', setupDone: true }
+    };
+    state.localWorkspaces[workspace.id] = workspace;
+    state.agents = [...state.agents, workspace];
+    state.workspace = workspace;
+    persistLocal();
+  }
+  state.currentView = 'settings';
+  render();
+}
+
+async function archiveAgent(agentId) {
+  if (!state.currentUser || state.agents.length <= 1) return;
+  if (!window.confirm('Архивировать этого агента? Его чат и материалы больше не будут показаны в списке.')) return;
+  if (state.apiAvailable) {
+    const result = await apiRequest('/api/agents/' + encodeURIComponent(agentId), { method: 'DELETE' });
+    state.agents = Array.isArray(result.agents) ? result.agents : [];
+    state.workspace = state.agents.find((agent) => agent.id === state.workspace?.id) || result.workspace || state.agents[0] || null;
+  } else {
+    state.agents = state.agents.filter((agent) => agent.id !== agentId);
+    delete state.localWorkspaces[agentId];
+    state.workspace = state.agents.find((agent) => agent.id === state.workspace?.id) || state.agents[0] || null;
+    persistLocal();
+  }
   render();
 }
 
@@ -795,6 +913,7 @@ async function setWorkspaceMode(mode) {
       body: JSON.stringify({ mode })
     });
     state.workspace = result.workspace;
+    replaceAgentInState(state.workspace);
   } else {
     const workspace = currentWorkspace();
     workspace.mode = mode;
@@ -862,6 +981,7 @@ async function sendMessage(text) {
       });
       hideTypingIndicator();
       state.workspace = result.workspace;
+      replaceAgentInState(state.workspace);
     } else {
       showTypingIndicator();
       // Simulate API delay for better UX
@@ -897,6 +1017,7 @@ async function createTask(title) {
       body: JSON.stringify({ title, details: 'Создано вручную через панель.' })
     });
     state.workspace = result.workspace;
+    replaceAgentInState(state.workspace);
   } else {
     const workspace = currentWorkspace();
     addLocalTask(workspace, title, 'Создано вручную через панель.');
@@ -916,6 +1037,7 @@ async function createMission(goal) {
       body: JSON.stringify({ goal: safeGoal })
     });
     state.workspace = result.workspace;
+    replaceAgentInState(state.workspace);
   } else {
     const workspace = currentWorkspace();
     const result = startLocalMission(workspace, safeGoal);
@@ -939,8 +1061,11 @@ async function saveAgentSettings() {
       body: JSON.stringify(payload)
     });
     state.workspace = result.workspace;
+    replaceAgentInState(state.workspace);
   } else {
     const workspace = currentWorkspace();
+    workspace.name = String(payload.name || '').trim() || workspace.name;
+    workspace.title = String(payload.role || '').trim() || 'Личный рабочий агент';
     workspace.agentConfig = {
       name: String(payload.name || '').trim(),
       role: String(payload.role || '').trim(),
@@ -948,6 +1073,7 @@ async function saveAgentSettings() {
       setupDone: Boolean(payload.name || payload.role || payload.instructions)
     };
     state.workspace = workspace;
+    replaceAgentInState(state.workspace);
     persistLocal();
   }
   render();
@@ -959,6 +1085,7 @@ async function resetWorkspace() {
   if (state.apiAvailable) {
     const result = await apiRequest('/api/workspace/reset', { method: 'POST', body: '{}' });
     state.workspace = result.workspace;
+    replaceAgentInState(state.workspace);
   } else {
     const workspace = currentWorkspace();
     workspace.tasks = [];
@@ -1009,6 +1136,7 @@ async function setTaskStatus(taskId, status) {
       body: JSON.stringify({ status })
     });
     state.workspace = result.workspace;
+    replaceAgentInState(state.workspace);
   } else {
     const workspace = currentWorkspace();
     const task = workspace.tasks.find((item) => item.id === taskId);
@@ -1181,6 +1309,18 @@ function bindEvents() {
     }
   });
 
+  el.agentList?.addEventListener('click', async (event) => {
+    const selectButton = event.target.closest('[data-agent-select]');
+    const archiveButton = event.target.closest('[data-agent-archive]');
+    if (selectButton) {
+      await selectAgent(selectButton.dataset.agentSelect);
+      return;
+    }
+    if (archiveButton) {
+      await archiveAgent(archiveButton.dataset.agentArchive);
+    }
+  });
+
   el.agentSettings.addEventListener('submit', async (event) => {
     event.preventDefault();
     await saveAgentSettings();
@@ -1198,10 +1338,15 @@ function bindEvents() {
     openMissionPrompt();
   });
 
+  el.newAgentBtn?.addEventListener('click', () => {
+    openAgentPrompt();
+  });
+
   el.promptModal.addEventListener('close', async () => {
-    if (el.promptModal.returnValue !== 'ok' || (!state.pendingTask && !state.pendingMission)) {
+    if (el.promptModal.returnValue !== 'ok' || (!state.pendingTask && !state.pendingMission && !state.pendingAgent)) {
       state.pendingTask = false;
       state.pendingMission = false;
+      state.pendingAgent = false;
       return;
     }
 
@@ -1209,15 +1354,25 @@ function bindEvents() {
     if (!value) {
       state.pendingTask = false;
       state.pendingMission = false;
+      state.pendingAgent = false;
+      return;
+    }
+    if (state.pendingAgent) {
+      state.pendingAgent = false;
+      state.pendingMission = false;
+      state.pendingTask = false;
+      await createAgent(value);
       return;
     }
     if (state.pendingMission) {
       state.pendingMission = false;
       state.pendingTask = false;
+      state.pendingAgent = false;
       await createMission(value);
       return;
     }
     state.pendingTask = false;
+    state.pendingAgent = false;
     await createTask(value);
   });
 }
