@@ -74,16 +74,26 @@ function seedWorkspace(userName, mode, quickActions, tasks, messages, missions, 
     mode: mode,
     model: 'Рабочий агент',
     quickActions: quickActions,
-    tasks: [],
-    messages: [],
-    missions: [],
-    artifacts: [],
+    tasks: tasks,
+    messages: messages,
+    missions: missions,
+    artifacts: artifacts,
     agentConfig: {
       name: '',
       role: '',
       instructions: '',
       setupDone: false
     }
+  };
+}
+
+function artifactPromptSummary(artifact) {
+  return {
+    id: artifact.id,
+    title: artifact.title,
+    type: artifact.type,
+    summary: artifact.summary || '',
+    content: artifact.type === 'image' ? undefined : String(artifact.content || '').slice(0, 500)
   };
 }
 
@@ -263,9 +273,12 @@ function parseCookies(req) {
 }
 
 function originAllowed(req) {
-  if (!FRONTEND_ORIGIN) return true;
   const origin = req.headers.origin;
-  return !origin || origin === FRONTEND_ORIGIN;
+  if (!origin) return true;
+  if (FRONTEND_ORIGIN) return origin === FRONTEND_ORIGIN;
+  const host = req.headers.host;
+  if (!host) return false;
+  return origin === 'http://' + host || origin === 'https://' + host;
 }
 
 function setCorsHeaders(req, res) {
@@ -849,7 +862,7 @@ function buildOpenClawPrompt(workspace, agentFiles, userText) {
     agentFiles.memory ? 'Память:\n' + agentFiles.memory : '',
     'Текущий режим: ' + workspace.mode + '.',
     'Активные миссии: ' + JSON.stringify((workspace.missions || []).slice(0, 3)),
-    'Последние артефакты: ' + JSON.stringify((workspace.artifacts || []).slice(0, 3)),
+    'Последние артефакты: ' + JSON.stringify((workspace.artifacts || []).slice(0, 3).map(artifactPromptSummary)),
     'Доступные инструменты агента: поиск свежей информации в интернете и серверная генерация изображений через Images API. Если запрос требует внешних данных, явно используй интернет-поиск и кратко укажи источники. Если запрос требует визуала, не делай вид, что файл готов: реальный файл прикрепляет backend, а при недоступной генерации нужно честно сказать о настройке.',
     'Контекст изолирован: видишь только одного сотрудника и его workspace.',
     'Отвечай по-русски, коротко и по делу.',
@@ -880,6 +893,10 @@ function generateWorkflowReply(workspace, message, agentFiles) {
 
   if (intent === 'mission') {
     const goal = String(message).replace(/создай|запусти|поручение|поручений|миссию|mission|план|агента|manus/gi, '').trim() || message;
+    if (workspace.mode !== 'execute') {
+      if (workspace.mode === 'approve') return 'Могу запустить поручение «' + goal + '». Подтверди, если ок. ' + agentTone;
+      return 'Могу оформить поручение «' + goal + '» с планом и готовым материалом. ' + agentTone;
+    }
     const result = startMission(workspace, goal);
     return 'Запустил поручение: «' + result.mission.goal + '». Составил план, начал выполнение и положил черновик результата в “Готовые материалы”. ' + agentTone;
   }
