@@ -661,31 +661,6 @@ function startLocalMission(workspace, goal) {
   return result;
 }
 
-function buildLocalImageArtifact(workspace, prompt) {
-  const safePrompt = String(prompt || '').trim() || 'Рабочее изображение';
-  const title = 'Изображение: ' + safePrompt.slice(0, 48);
-  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720">' +
-    '<rect width="1200" height="720" fill="#07101b"/>' +
-    '<rect x="72" y="72" width="1056" height="576" rx="28" fill="#101826" stroke="#38bdf8" stroke-width="3"/>' +
-    '<circle cx="998" cy="168" r="72" fill="#f59e0b" opacity="0.9"/>' +
-    '<path d="M132 504 C296 392 384 440 520 336 C696 202 804 248 1068 168" fill="none" stroke="#38bdf8" stroke-width="18" stroke-linecap="round" opacity="0.85"/>' +
-    '<text x="132" y="172" fill="#e6edf7" font-family="Arial, sans-serif" font-size="48" font-weight="700">AgentHub image</text>' +
-    '<text x="132" y="246" fill="#cbd8e8" font-family="Arial, sans-serif" font-size="28">' + escapeHtml(safePrompt.slice(0, 82)) + '</text>' +
-    '<text x="132" y="586" fill="#a0b5cc" font-family="Arial, sans-serif" font-size="24">Generated workspace artifact</text>' +
-    '</svg>';
-  const artifact = {
-    id: newId(),
-    title: title,
-    type: 'image',
-    summary: 'SVG-изображение, сгенерированное агентом по запросу сотрудника.',
-    content: svg,
-    mimeType: 'image/svg+xml',
-    downloadName: artifactFileName({ title, type: 'image' })
-  };
-  workspace.artifacts = [artifact, ...(workspace.artifacts || [])].slice(0, 8);
-  return artifact;
-}
-
 function isImageRequest(message) {
   const lower = String(message || '').toLowerCase();
   if (/картин|изображ|иллюстрац|image|picture|photo|svg/.test(lower)) return true;

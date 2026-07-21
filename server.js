@@ -638,15 +638,6 @@ async function buildSearchReply(message) {
   return 'Нашел свежие источники по запросу: ' + found.query + '\n\n' + lines.join('\n\n');
 }
 
-function escapeXml(value) {
-  return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
-
 function buildImagePrompt(workspace, prompt, agentFiles) {
   const safePrompt = String(prompt || '').trim() || 'Рабочее изображение для задачи';
   const context = [
