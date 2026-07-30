@@ -626,7 +626,7 @@ function renderWorkspace() {
   `).join('');
 
   el.messages.innerHTML = workspace.messages.length ? workspace.messages.map((message) => {
-    const copyBtnHtml = message.role !== 'user' ? `<button class="copy-msg-btn" data-copy="${escapeHtml(message.text)}" type="button" title="Скопировать" aria-label="Скопировать ответ">⧉</button>` : '';
+    const copyBtnHtml = message.role !== 'user' ? `<button class="copy-msg-btn" data-message-copy="${escapeHtml(message.id)}" type="button" title="Скопировать" aria-label="Скопировать ответ">⧉</button>` : '';
     return `
     <article class="message ${escapeHtml(message.role)}">
       <div class="message-meta">
@@ -648,24 +648,6 @@ function renderWorkspace() {
       </div>
     </div>
   `;
-
-  // Attach copy button listeners
-  document.querySelectorAll('.copy-msg-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const text = btn.dataset.copy;
-      navigator.clipboard.writeText(text).then(() => {
-        const originalText = btn.textContent;
-        btn.textContent = '✓';
-        btn.classList.add('copied');
-        setTimeout(() => {
-          btn.textContent = originalText;
-          btn.classList.remove('copied');
-        }, 2000);
-      }).catch(err => {
-        console.error('Copy failed:', err);
-      });
-    });
-  });
 
   scrollMessagesToBottom();
 
@@ -1248,19 +1230,29 @@ function findArtifact(workspace, artifactId) {
   return (workspace.artifacts || []).find((artifact) => artifact.id === artifactId) || null;
 }
 
+function findMessage(workspace, messageId) {
+  return (workspace.messages || []).find((message) => message.id === messageId) || null;
+}
+
+async function copyText(text, fallbackLabel) {
+  const value = String(text || '');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    await navigator.clipboard.writeText(value);
+    return true;
+  }
+  window.prompt(fallbackLabel || 'Скопируйте текст', value);
+  return true;
+}
+
 async function copyArtifact(artifact) {
   if (!artifact) return;
   const text = artifact.content || artifact.summary || artifact.title || '';
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    try {
-      await navigator.clipboard.writeText(text);
-      announceStatus('Материал скопирован');
-      return;
-    } catch {
-      announceStatus('Не удалось скопировать материал');
-    }
+  try {
+    await copyText(text, 'Скопируйте текст');
+    announceStatus('Материал скопирован');
+  } catch {
+    announceStatus('Не удалось скопировать материал');
   }
-  window.prompt('Скопируйте текст', text);
 }
 
 function downloadArtifact(artifact) {
@@ -1379,6 +1371,24 @@ function bindEvents() {
   });
 
   el.dashboard.addEventListener('click', (event) => {
+    const copyMessageButton = event.target.closest('[data-message-copy]');
+    if (copyMessageButton) {
+      const workspace = currentWorkspace();
+      const message = workspace ? findMessage(workspace, copyMessageButton.dataset.messageCopy) : null;
+      if (!message) return;
+      copyText(message.text || '', 'Скопируйте ответ').then(() => {
+        copyMessageButton.textContent = '✓';
+        copyMessageButton.classList.add('copied');
+        setTimeout(() => {
+          copyMessageButton.textContent = '⧉';
+          copyMessageButton.classList.remove('copied');
+        }, 2000);
+      }).catch(() => {
+        announceStatus('Не удалось скопировать ответ');
+      });
+      return;
+    }
+
     const downloadButton = event.target.closest('[data-artifact-download]');
     if (downloadButton) {
       const workspace = currentWorkspace();
