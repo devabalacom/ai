@@ -480,12 +480,8 @@ function getAgentFiles(agentId) {
   };
 }
 
-function getGatewayModelForWorkspace(workspaceId) {
-  const mapping = {
-    'support-agent': 'openclaw/worker',
-    'sales-agent': 'openclaw/pm'
-  };
-  return mapping[workspaceId] || 'openclaw/default';
+function getGatewayModelForWorkspace() {
+  return 'openclaw/default';
 }
 
 async function createSession(userId, req, res) {
