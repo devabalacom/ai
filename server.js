@@ -1144,6 +1144,8 @@ async function askOpenClawGateway(workspace, userText, agentFiles) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), OPENCLAW_GATEWAY_TIMEOUT_MS);
   const headers = { 'Content-Type': 'application/json' };
+  headers['x-openclaw-session-key'] = 'agenthub:' + workspace.id;
+  headers['x-openclaw-message-channel'] = 'agenthub';
   if (OPENCLAW_GATEWAY_TOKEN) {
     headers.Authorization = 'Bearer ' + OPENCLAW_GATEWAY_TOKEN;
   } else if (OPENCLAW_GATEWAY_PASSWORD) {
@@ -1197,6 +1199,18 @@ async function answerWorkspaceMessage(workspace, userText, agentFiles) {
     rememberWorkspaceNote(workspace, memoryNote);
     return { text: 'Запомнил: ' + memoryNote };
   }
+  if (intent === 'image') {
+    const artifact = await buildImageArtifact(workspace, userText, agentFiles);
+    if (!artifact) {
+      return {
+        text: 'Не смог сгенерировать изображение внутри AgentHub: на сервере не настроена или недоступна генерация изображений. Нужен OPENAI_API_KEY с доступом к Images API.'
+      };
+    }
+    return {
+      text: 'Сгенерировал изображение внутри AgentHub: ' + artifact.title + '. Оно сохранено в “Готовых материалах”.',
+      artifact: artifact
+    };
+  }
   if (intent === 'task' && workspace.mode === 'execute') {
     const title = String(userText).replace(/создай|сделай|задачу|task/gi, '').trim() || 'Новая задача';
     if (!workspace.tasks.some((task) => task.title.toLowerCase() === title.toLowerCase())) {
@@ -1214,18 +1228,6 @@ async function answerWorkspaceMessage(workspace, userText, agentFiles) {
   }
   if (intent === 'search' && workspace.mode === 'execute') {
     return { text: await buildSearchReply(userText) };
-  }
-  if (intent === 'image' && workspace.mode === 'execute') {
-    const artifact = await buildImageArtifact(workspace, userText, agentFiles);
-    if (!artifact) {
-      return {
-        text: 'Не смог сгенерировать изображение: на сервере не настроена или недоступна генерация изображений. Нужен OPENAI_API_KEY с доступом к Images API.'
-      };
-    }
-    return {
-      text: 'Сгенерировал файл и прикрепил его в чат: ' + artifact.title + '. Его также можно найти в “Готовых материалах”.',
-      artifact: artifact
-    };
   }
   const reply = await askOpenClawGateway(workspace, userText, agentFiles);
   if (!reply) {
