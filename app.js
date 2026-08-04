@@ -135,6 +135,7 @@ const el = {
   topbarSummary: document.getElementById('topbar-summary'),
   todaySummary: document.getElementById('today-summary'),
   nextStepCard: document.getElementById('next-step-card'),
+  sideArtifacts: document.getElementById('side-artifacts'),
   chatSubtitle: document.getElementById('chat-subtitle'),
   modeSwitch: document.getElementById('mode-switch'),
   modeHelp: document.getElementById('mode-help'),
@@ -582,17 +583,17 @@ function renderWorkspace() {
   const agentConfig = workspace.agentConfig || {};
   el.profileMeta.textContent = `${state.currentUser.title} · ${agentDisplayName(workspace)}`;
   el.workspaceTitle.textContent = `${agentDisplayName(workspace)} · ${workspace.title}`;
-  el.workspaceHint.textContent = 'Один вход: сотрудник пишет цель, агент сам планирует шаги и сохраняет результат.';
+  el.workspaceHint.textContent = 'Поставьте цель. Агент спланирует работу, выполнит шаги и отдаст готовый материал.';
   const openTasks = workspace.tasks.filter((task) => task.status !== 'done').length;
   const runningMissions = (workspace.missions || []).filter((mission) => mission.status === 'running').length;
   const artifactCount = (workspace.artifacts || []).length;
-  el.topbarSummary.textContent = `${workspace.model || 'Автономный агент'} · ${runningMissions} в работе · ${artifactCount} результатов`;
-  el.chatSubtitle.textContent = 'Опишите результат. Агент сам создаст план, выполнит шаги и покажет итог.';
+  el.topbarSummary.textContent = `Агент работает сам · ${runningMissions} в работе · ${artifactCount} готово`;
+  el.chatSubtitle.textContent = 'Опишите конечный результат, не команды по шагам.';
   el.modeHelp.textContent = 'Автономный режим включен по умолчанию.';
   el.todaySummary.innerHTML = `
     <div><strong>${runningMissions}</strong><span>в работе</span></div>
-    <div><strong>${artifactCount}</strong><span>результаты</span></div>
-    <div><strong>${openTasks}</strong><span>задачи</span></div>
+    <div><strong>${artifactCount}</strong><span>готово</span></div>
+    <div><strong>${openTasks}</strong><span>память</span></div>
   `;
   renderNextStep(workspace);
   el.agentName.value = agentConfig.name || '';
@@ -643,8 +644,8 @@ function renderWorkspace() {
     </article>
   `}).join('') : `
     <div class="empty-state">
-      <strong>Напишите первую цель</strong>
-      <p>Агент сам решит, какие шаги нужны: поиск, план, черновик, изображение или готовый материал.</p>
+      <strong>Поставьте первую задачу</strong>
+      <p>Напишите, что нужно получить. Агент сам составит план, выполнит шаги и сохранит результат справа.</p>
       <div class="empty-actions">
         ${exampleRequests.map((request) => `<button class="quick-chip" type="button" data-empty-request="${escapeHtml(request)}">${escapeHtml(request)}</button>`).join('')}
       </div>
@@ -713,7 +714,21 @@ function renderWorkspace() {
     </div>
   `).join('') : '<div class="empty-state"><strong>Агент еще не работал</strong><p>Напишите цель на рабочем столе. Здесь появятся план, шаги, инструменты и прогресс.</p><div class="empty-actions"><button class="quick-chip" type="button" data-empty-request="Подготовь рабочий результат с планом">Написать цель</button></div></div>';
 
-  el.artifactList.innerHTML = (workspace.artifacts || []).length ? (workspace.artifacts || []).map((artifact) => `
+  const artifacts = workspace.artifacts || [];
+  el.sideArtifacts.innerHTML = artifacts.length ? `
+    <div class="side-section-title">Последние материалы</div>
+    ${artifacts.slice(0, 2).map((artifact) => `
+      <button class="side-artifact" type="button" data-next-view="artifacts">
+        <span>${escapeHtml(artifactTypeLabel(artifact.type))}</span>
+        <strong>${escapeHtml(artifact.title)}</strong>
+      </button>
+    `).join('')}
+  ` : `
+    <div class="side-section-title">Результат появится здесь</div>
+    <p class="side-empty">Когда агент закончит работу, готовый материал будет доступен отдельно от чата.</p>
+  `;
+
+  el.artifactList.innerHTML = artifacts.length ? artifacts.map((artifact) => `
     <article class="artifact-item" role="listitem">
       <div class="artifact-meta"><span>${escapeHtml(artifactTypeLabel(artifact.type))}</span></div>
       <strong>${escapeHtml(artifact.title)}</strong>

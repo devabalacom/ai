@@ -72,11 +72,9 @@
             </button>
           </div>
           <nav class="nav-list" aria-label="Разделы">
-            <a class="active" href="#workspace-grid" data-view="chat" data-short="Старт" title="Рабочий стол">Рабочий стол</a>
-            <a href="#mission-list" data-view="missions" data-short="Ход" title="Ход работы">Ход работы</a>
-            <a href="#artifact-list" data-view="artifacts" data-short="Итог" title="Результаты">Результаты</a>
-            <a href="#task-list" data-view="tasks" data-short="Память" title="Напоминания">Напоминания</a>
-            <a href="#agent-list" data-view="agents" data-short="Агенты" title="Агенты">Агенты</a>
+            <a class="active" href="#workspace-grid" data-view="chat" data-short="Работа" title="Рабочее место">Работа</a>
+            <a href="#artifact-list" data-view="artifacts" data-short="Итог" title="Готовые материалы">Готовые материалы</a>
+            <a href="#mission-list" data-view="missions" data-short="История" title="История работы">История</a>
             <a href="#agent-settings" data-view="settings" data-short="Настр." title="Настройки">Настройки</a>
           </nav>
           <button class="chip logout-wide" id="logout-btn">Выйти</button>
@@ -123,9 +121,11 @@
 
               <aside class="stack-column">
                 <section class="panel today-panel" id="today-panel">
-                  <div class="panel-title">Ход работы</div>
+                  <div class="panel-title">Что делает агент</div>
+                  <div class="panel-subtitle">План, прогресс и последние материалы</div>
                   <div class="today-summary" id="today-summary"></div>
                   <div class="next-step-card" id="next-step-card"></div>
+                  <div class="side-artifacts" id="side-artifacts"></div>
                   <div class="today-actions">
                     <button class="primary-btn" id="new-mission-btn" type="button">Новая цель</button>
                     <button class="ghost-btn" id="new-task-btn" type="button">Запомнить задачу</button>

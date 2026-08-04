@@ -960,20 +960,22 @@ button, input, select {
 
 .today-summary {
   display: grid;
-  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
   margin: 16px 0;
 }
 
 .today-summary div {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.035);
 }
 
 .today-summary strong {
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 700;
 }
 
@@ -1013,6 +1015,59 @@ button, input, select {
   color: var(--soft);
   font-size: 13px;
   line-height: 1.5;
+}
+
+.side-artifacts {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.side-section-title {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.side-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.side-artifact {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.035);
+  text-align: left;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.side-artifact:hover {
+  border-color: rgba(20, 184, 166, 0.38);
+  background: rgba(20, 184, 166, 0.1);
+}
+
+.side-artifact span {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.side-artifact strong {
+  font-size: 13px;
+  line-height: 1.35;
 }
 
 .next-step-action {
