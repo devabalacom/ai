@@ -147,7 +147,6 @@ const el = {
   taskList: document.getElementById('task-list'),
   missionList: document.getElementById('mission-list'),
   artifactList: document.getElementById('artifact-list'),
-  workflowGrid: document.getElementById('workflow-grid'),
   onboardingList: document.getElementById('onboarding-list'),
   agentList: document.getElementById('agent-list'),
   newAgentBtn: document.getElementById('new-agent-btn'),
@@ -727,20 +726,6 @@ function renderWorkspace() {
       </div>
     </article>
   `).join('') : '<div class="empty-state"><strong>Результатов пока нет</strong><p>Готовые ответы, файлы и изображения появятся здесь после работы агента.</p><div class="empty-actions"><button class="quick-chip" type="button" data-empty-request="Подготовь первый рабочий результат">Написать цель</button></div></div>';
-
-  const workflow = [
-    { label: 'Режим', value: 'Выполняет сам' },
-    { label: 'В работе', value: String(runningMissions) },
-    { label: 'Напоминания', value: String(openTasks) },
-    { label: 'Результаты', value: String(artifactCount) }
-  ];
-
-  el.workflowGrid.innerHTML = workflow.map((item) => `
-    <div class="workflow-card">
-      <div class="workflow-label">${escapeHtml(item.label)}</div>
-      <div class="workflow-value">${escapeHtml(item.value)}</div>
-    </div>
-  `).join('');
 
   el.onboardingList.innerHTML = onboardingSteps.map((step, index) => `
     <div class="onboarding-step">

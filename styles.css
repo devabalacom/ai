@@ -1013,20 +1013,9 @@ button, input, select {
   margin-top: 4px;
 }
 
-.workflow-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.workflow-card {
-  padding: 14px;
-}
-
 .agent-settings {
   display: grid;
   gap: 16px;
-  margin-top: 16px;
 }
 
 .agent-settings label {
@@ -1650,7 +1639,7 @@ button, input, select {
 }
 
 @media (max-width: 880px) {
-  .feature-list, .credential-grid, .workflow-grid {
+  .feature-list, .credential-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1672,7 +1661,7 @@ button, input, select {
     border-radius: var(--radius-xl);
   }
 
-  .feature-list, .credential-grid, .workflow-grid, .nav-list {
+  .feature-list, .credential-grid, .nav-list {
     grid-template-columns: 1fr;
   }
 
