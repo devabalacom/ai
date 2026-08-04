@@ -78,9 +78,9 @@ const statusCopy = {
 };
 
 const agentTools = [
-  { id: 'brain', label: 'Модель агента', status: 'проверяем' },
-  { id: 'web', label: 'Поиск в интернете', status: 'включен' },
-  { id: 'image', label: 'Генерация изображений', status: 'включена' }
+  { id: 'brain', label: 'Модель', status: 'проверяем' },
+  { id: 'web', label: 'Поиск', status: 'включен' },
+  { id: 'image', label: 'Изображения', status: 'включена' }
 ];
 
 const artifactTypeCopy = {

@@ -748,6 +748,8 @@ button, input, select {
 }
 
 .tool-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   padding-bottom: 2px;
 }
@@ -758,6 +760,11 @@ button, input, select {
   gap: 8px;
   cursor: default;
   white-space: normal;
+  justify-content: flex-start;
+  min-width: 0;
+  min-height: 38px;
+  height: auto;
+  text-align: left;
 }
 
 .tool-chip strong {
@@ -1676,6 +1683,10 @@ button, input, select {
   }
 
   .quick-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .tool-strip {
     grid-template-columns: 1fr;
   }
 
