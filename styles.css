@@ -1,17 +1,18 @@
 :root {
   color-scheme: dark;
-  --bg: #0b0d10;
-  --panel: #15181d;
-  --panel-strong: #1e2329;
-  --surface: #20262d;
+  --bg: #0c1014;
+  --panel: #14191f;
+  --panel-strong: #1b2229;
+  --surface: #222a32;
   --line: rgba(176, 184, 194, 0.18);
   --line-strong: rgba(176, 184, 194, 0.32);
   --text: #f2f5f8;
   --muted: #9aa7b5;
   --soft: #d4dbe3;
-  --accent: #14b8a6;
-  --accent-hover: #2dd4bf;
-  --accent-2: #eab308;
+  --accent: #18c7b6;
+  --accent-hover: #49deca;
+  --accent-2: #f4b942;
+  --accent-3: #7dd3fc;
   --success: #22c55e;
   --danger: #f87171;
   --shadow: 0 16px 44px rgba(0, 0, 0, 0.28);
@@ -40,7 +41,7 @@ body {
   margin: 0;
   font-family: "Manrope", system-ui, sans-serif;
   color: var(--text);
-  background: linear-gradient(180deg, #101418 0%, #080a0d 100%);
+  background: #0c1014;
   overflow-x: hidden;
   line-height: 1.6;
 }
@@ -86,7 +87,7 @@ button, input, select {
 .auth-card, .panel, .topbar, .side-nav {
   border: 1px solid var(--line);
   background: var(--panel);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-sm);
   border-radius: var(--radius-xl);
 }
 
@@ -635,7 +636,7 @@ button, input, select {
 
 .grid {
   display: grid;
-  grid-template-columns: minmax(520px, 1.78fr) minmax(300px, 0.62fr);
+  grid-template-columns: minmax(560px, 1.7fr) minmax(320px, 0.68fr);
   gap: 20px;
   align-items: stretch;
   min-height: 0;
@@ -649,8 +650,12 @@ button, input, select {
   min-height: 0;
   height: clamp(620px, calc(100dvh - 180px), 860px);
   display: grid;
-  grid-template-rows: auto auto auto minmax(280px, 1fr) auto;
-  gap: 12px;
+  grid-template-rows: auto auto minmax(300px, 1fr) auto;
+  gap: 14px;
+  border-color: rgba(125, 211, 252, 0.18);
+  background:
+    linear-gradient(180deg, rgba(125, 211, 252, 0.045), transparent 28%),
+    var(--panel);
 }
 
 .chat-panel .panel-head {
@@ -687,6 +692,16 @@ button, input, select {
   gap: 8px;
 }
 
+.chat-panel .mode-switch,
+.chat-panel .mode-help {
+  display: none;
+}
+
+.quick-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .mode-chip, .quick-chip, .tool-chip, .task-actions button, .artifact-actions button, .agent-actions button {
   display: inline-flex;
   align-items: center;
@@ -714,6 +729,8 @@ button, input, select {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-height: 44px;
+  justify-content: flex-start;
 }
 
 .mode-chip.active {
@@ -732,6 +749,7 @@ button, input, select {
 
 .tool-strip {
   gap: 8px;
+  padding-bottom: 2px;
 }
 
 .tool-chip {
@@ -772,7 +790,7 @@ button, input, select {
   gap: 12px;
   align-content: start;
   overflow-y: auto;
-  padding-right: 4px;
+  padding: 4px 4px 4px 0;
   min-height: 0;
   max-height: 100%;
   overscroll-behavior: contain;
@@ -784,7 +802,7 @@ button, input, select {
   padding: 14px 16px;
   border-radius: var(--radius-md);
   border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.045);
   animation: slideIn 200ms var(--transition) forwards;
   opacity: 0;
   transform: translateY(8px);
@@ -809,8 +827,8 @@ button, input, select {
 
 .message.user {
   margin-left: auto;
-  background: rgba(20, 184, 166, 0.14);
-  border-color: rgba(20, 184, 166, 0.28);
+  background: rgba(24, 199, 182, 0.16);
+  border-color: rgba(24, 199, 182, 0.34);
 }
 
 .message-attachment {
@@ -899,6 +917,22 @@ button, input, select {
   grid-template-columns: minmax(0, 1fr) minmax(120px, auto);
   gap: 12px;
   align-items: center;
+  padding: 12px;
+  border: 1px solid rgba(125, 211, 252, 0.22);
+  border-radius: var(--radius-xl);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.composer input {
+  min-height: 52px;
+  border-color: transparent;
+  background: transparent;
+  font-size: 15px;
+}
+
+.composer input:focus {
+  box-shadow: none;
+  background: transparent;
 }
 
 .composer .primary-btn {
@@ -910,6 +944,11 @@ button, input, select {
   gap: 20px;
   align-content: start;
   min-height: 0;
+}
+
+.today-panel {
+  position: sticky;
+  top: 24px;
 }
 
 .today-summary {
@@ -952,9 +991,9 @@ button, input, select {
   gap: 8px;
   margin: 16px 0;
   padding: 14px;
-  border: 1px solid rgba(20, 184, 166, 0.24);
+  border: 1px solid rgba(125, 211, 252, 0.24);
   border-radius: var(--radius-md);
-  background: rgba(20, 184, 166, 0.08);
+  background: rgba(125, 211, 252, 0.07);
 }
 
 .next-step-card strong {
@@ -1506,6 +1545,14 @@ button, input, select {
     min-height: 620px;
   }
 
+  .quick-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .today-panel {
+    position: static;
+  }
+
   .control-layout,
   .dashboard.sidebar-collapsed .control-layout {
     grid-template-columns: 1fr;
@@ -1637,6 +1684,10 @@ button, input, select {
 
   .message {
     max-width: 100%;
+  }
+
+  .quick-actions {
+    grid-template-columns: 1fr;
   }
 
   .control-layout {

@@ -27,7 +27,10 @@ Deployment model:
 
 Workflow layer:
 - The backend now uses OpenClaw workflow files per user.
+- The agent brain is OpenClaw Gateway, expected to run on the same VPS as the app.
+- AgentHub handles employee login/accounts; authenticated users send work to OpenClaw through the backend.
 - If OPENCLAW_GATEWAY_URL is set, the backend can call an OpenClaw Gateway.
+- OPENCLAW_MODEL selects the model exposed by OpenClaw Gateway; use it for the OpenAI-backed model.
 - If no gateway is configured, the backend falls back to local workflow logic so chat and поручения still work.
 
 Optional environment variables:
@@ -35,6 +38,7 @@ Optional environment variables:
 - OPENCLAW_GATEWAY_URL
 - OPENCLAW_GATEWAY_TOKEN
 - OPENCLAW_GATEWAY_PASSWORD
+- OPENCLAW_MODEL (default: openclaw/default)
 - OPENAI_API_KEY (required for real image generation)
 - OPENAI_IMAGE_MODEL (default: gpt-image-1)
 - OPENAI_IMAGE_SIZE (default: 1024x1024)

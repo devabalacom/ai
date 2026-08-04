@@ -18,6 +18,7 @@ const OPENCLAW_GATEWAY_URL = process.env.OPENCLAW_GATEWAY_URL || '';
 const OPENCLAW_GATEWAY_TOKEN = process.env.OPENCLAW_GATEWAY_TOKEN || '';
 const OPENCLAW_GATEWAY_PASSWORD = process.env.OPENCLAW_GATEWAY_PASSWORD || '';
 const OPENCLAW_GATEWAY_TIMEOUT_MS = Number(process.env.OPENCLAW_GATEWAY_TIMEOUT_MS || 120000);
+const OPENCLAW_MODEL = process.env.OPENCLAW_MODEL || 'openclaw/default';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1';
 const OPENAI_IMAGE_SIZE = process.env.OPENAI_IMAGE_SIZE || '1024x1024';
@@ -83,7 +84,7 @@ function seedWorkspace(userName, mode, quickActions, tasks, messages, missions, 
     name: userName,
     title: 'Личный рабочий агент',
     mode: mode,
-    model: 'Рабочий агент',
+    model: 'Автономный агент',
     quickActions: quickActions,
     tasks: tasks,
     messages: messages,
@@ -110,11 +111,11 @@ function artifactPromptSummary(artifact) {
 }
 
 const seedWorkspaces = [
-  seedWorkspace('Алина', 'approve', [
-    'Найди свежую информацию в интернете',
-    'Сгенерируй изображение для ответа',
-    'Запусти поручение: разобрать тикет',
-    'Покажи статус поручений'
+  seedWorkspace('Алина', 'execute', [
+    'Найди свежую информацию и подготовь краткий вывод',
+    'Сгенерируй изображение и сохрани результат',
+    'Разбери тикет и подготовь готовый ответ',
+    'Покажи, что сейчас в работе'
   ], [
     { id: 't1', title: 'Ответить на тикет по доступам', details: 'Подготовить короткий черновик ответа', status: 'todo' },
     { id: 't2', title: 'Собрать FAQ', details: 'Вытащить частые вопросы из истории', status: 'waiting' }
@@ -140,11 +141,11 @@ const seedWorkspaces = [
   ], [
     { id: 'artifact-support-1', title: 'Черновик ответа клиенту', type: 'reply', summary: 'Короткий ответ по доступам с понятным следующим шагом.', content: 'Здравствуйте. Проверили доступы: учетная запись активна. Попробуйте войти заново, если ошибка повторится, пришлите скриншот и время попытки входа.' }
   ]),
-  seedWorkspace('Дамир', 'approve', [
-    'Найди свежую информацию в интернете',
+  seedWorkspace('Дамир', 'execute', [
+    'Найди свежую информацию и подготовь краткий вывод',
     'Сгенерируй изображение для клиента',
-    'Запусти поручение: подготовить follow-up',
-    'Покажи статус поручений'
+    'Подготовь follow-up клиенту',
+    'Покажи, что сейчас в работе'
   ], [
     { id: 't3', title: 'Ответить клиенту по срокам', details: 'Сначала проверить подтвержденную дату', status: 'todo' },
     { id: 't4', title: 'Подготовить follow-up', details: 'Сделать короткий и уверенный текст', status: 'done' }
@@ -245,22 +246,22 @@ async function initDb() {
     ]);
   }
 
-  await pool.query("UPDATE workspaces SET model = 'Рабочий агент' WHERE model IS NULL OR model = ''");
+  await pool.query("UPDATE workspaces SET model = 'Автономный агент' WHERE model IS NULL OR model = '' OR model = 'Рабочий агент'");
   await pool.query('UPDATE workspaces SET quick_actions = $1 WHERE id = $2 AND jsonb_array_length(quick_actions) = 0', [
     JSON.stringify([
-      'Найди свежую информацию в интернете',
-      'Сгенерируй изображение для ответа',
-      'Запусти поручение: разобрать тикет',
-      'Покажи статус поручений'
+      'Найди свежую информацию и подготовь краткий вывод',
+      'Сгенерируй изображение и сохрани результат',
+      'Разбери тикет и подготовь готовый ответ',
+      'Покажи, что сейчас в работе'
     ]),
     'support-agent'
   ]);
   await pool.query('UPDATE workspaces SET quick_actions = $1 WHERE id = $2 AND jsonb_array_length(quick_actions) = 0', [
     JSON.stringify([
-      'Найди свежую информацию в интернете',
+      'Найди свежую информацию и подготовь краткий вывод',
       'Сгенерируй изображение для клиента',
-      'Запусти поручение: подготовить follow-up',
-      'Покажи статус поручений'
+      'Подготовь follow-up клиенту',
+      'Покажи, что сейчас в работе'
     ]),
     'sales-agent'
   ]);
@@ -481,7 +482,7 @@ function getAgentFiles(agentId) {
 }
 
 function getGatewayModelForWorkspace() {
-  return 'openclaw/default';
+  return OPENCLAW_MODEL;
 }
 
 async function createSession(userId, req, res) {
@@ -593,10 +594,10 @@ function addMessage(workspace, role, text, author, extra = {}) {
 
 function defaultQuickActions() {
   return [
-    'Найди свежую информацию в интернете',
-    'Сгенерируй изображение',
-    'Запусти поручение: подготовить результат',
-    'Покажи статус поручений'
+    'Найди свежую информацию и подготовь краткий вывод',
+    'Сгенерируй изображение и сохрани результат',
+    'Подготовь рабочий результат с планом',
+    'Покажи, что сейчас в работе'
   ];
 }
 
@@ -609,8 +610,8 @@ async function createWorkspaceForUser(user, body = {}) {
     id: id,
     name: name,
     title: role || 'Личный рабочий агент',
-    mode: 'approve',
-    model: 'Рабочий агент',
+    mode: 'execute',
+    model: 'Автономный агент',
     quickActions: defaultQuickActions(),
     tasks: [],
     messages: [],
@@ -838,8 +839,8 @@ function missionResultMessage(mission) {
 function extractIntent(message) {
   const lower = String(message).toLowerCase();
   if (isImageRequest(lower)) return 'image';
-  if (/поруч|мисси|mission|план|исслед|проанализ|подготов|автоном|manus/.test(lower)) return 'mission';
-  if (/задач|task|сделай/.test(lower)) return 'task';
+  if (/задач|task|напомни|не забыть/.test(lower)) return 'task';
+  if (/поруч|мисси|mission|план|исслед|проанализ|подготов|сравни|разбер|собери|составь|проверь|сделай|создай|автоном|manus/.test(lower)) return 'mission';
   if (/прайс|цена|документ|найди|поиск|интернет|web|сайт/.test(lower)) return 'search';
   if (/статус|блок|риск/.test(lower)) return 'status';
   if (/привет|hello|hi/.test(lower)) return 'greeting';
@@ -1211,14 +1212,14 @@ async function answerWorkspaceMessage(workspace, userText, agentFiles) {
       artifact: artifact
     };
   }
-  if (intent === 'task' && workspace.mode === 'execute') {
+  if (intent === 'task') {
     const title = String(userText).replace(/создай|сделай|задачу|task/gi, '').trim() || 'Новая задача';
     if (!workspace.tasks.some((task) => task.title.toLowerCase() === title.toLowerCase())) {
       addTask(workspace, title, 'Создано из чата рабочего агента.');
     }
     return { text: 'Создал задачу: ' + title + '.' };
   }
-  if (intent === 'mission' && workspace.mode === 'execute') {
+  if (intent === 'mission') {
     const goal = String(userText).replace(/создай|запусти|поручение|поручений|миссию|mission|план|агента|manus/gi, '').trim() || userText;
     const result = await startMission(workspace, goal, agentFiles);
     return {
@@ -1226,7 +1227,7 @@ async function answerWorkspaceMessage(workspace, userText, agentFiles) {
       artifact: result.artifact
     };
   }
-  if (intent === 'search' && workspace.mode === 'execute') {
+  if (intent === 'search') {
     return { text: await buildSearchReply(userText) };
   }
   const reply = await askOpenClawGateway(workspace, userText, agentFiles);
@@ -1300,7 +1301,7 @@ async function handleWorkspaceReset(req, res) {
   ctx.workspace.missions = [];
   ctx.workspace.artifacts = [];
   ctx.workspace.agentConfig = { name: '', role: '', instructions: '', memoryNotes: [], setupDone: false };
-  ctx.workspace.mode = 'approve';
+  ctx.workspace.mode = 'execute';
   await saveWorkspace(ctx.workspace);
   sendJson(res, 200, { workspace: ctx.workspace });
 }
@@ -1508,6 +1509,7 @@ async function main() {
         agentBrainLastError: gatewayLastError,
         agentBrainLastCheckedAt: gatewayLastCheckedAt,
         agentBrainTimeoutMs: OPENCLAW_GATEWAY_TIMEOUT_MS,
+        agentBrainModel: OPENCLAW_MODEL,
         imageGenerationConfigured: Boolean(OPENAI_API_KEY)
       });
     }

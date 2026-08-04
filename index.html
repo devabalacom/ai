@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#101418">
   <title>AgentHub</title>
-  <meta name="description" content="Панель сотрудника для управления личным AI-агентом, задачами и рабочими поручениями.">
+  <meta name="description" content="Рабочий AI-агент: сотрудник пишет цель, агент сам планирует работу и отдает результат.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
@@ -17,13 +17,13 @@
     <section class="auth-card" id="auth-card" aria-labelledby="auth-title">
       <div class="auth-copy">
         <div class="eyebrow">AgentHub</div>
-        <h1 id="auth-title">Рабочее место цифрового сотрудника</h1>
-        <p>Здесь сотрудник ставит цели, запускает автономные поручения, видит прогресс и забирает готовые результаты.</p>
+        <h1 id="auth-title">Напишите цель. Агент сделает работу.</h1>
+        <p>AgentHub работает как личный исполнитель: принимает задачу обычным текстом, показывает ход работы и сохраняет готовый результат.</p>
         <div class="feature-list">
-          <div>Личный чат</div>
-          <div>Поручения</div>
-          <div>Задачи</div>
-          <div>Результаты</div>
+          <div>Написать цель</div>
+          <div>Увидеть план</div>
+          <div>Следить за ходом</div>
+          <div>Забрать результат</div>
         </div>
       </div>
       <form class="auth-form" id="login-form">
@@ -63,7 +63,7 @@
             <div class="brand-mark">A</div>
             <div>
               <strong>AgentHub</strong>
-              <span>Помощник</span>
+            <span>Рабочий агент</span>
             </div>
             <button class="side-nav-toggle" id="side-nav-toggle" type="button" aria-controls="side-nav" aria-expanded="true" aria-label="Свернуть меню">
               <span></span>
@@ -72,12 +72,11 @@
             </button>
           </div>
           <nav class="nav-list" aria-label="Разделы">
-            <a class="active" href="#workspace-grid" data-view="chat" data-short="Чат" title="Чат">Чат</a>
-            <a href="#agent-list" data-view="agents" data-short="Команда" title="Команда">Команда</a>
-            <a href="#mission-list" data-view="missions" data-short="Поруч." title="Поручения">Поручения</a>
+            <a class="active" href="#workspace-grid" data-view="chat" data-short="Старт" title="Рабочий стол">Рабочий стол</a>
+            <a href="#mission-list" data-view="missions" data-short="Ход" title="Ход работы">Ход работы</a>
+            <a href="#artifact-list" data-view="artifacts" data-short="Итог" title="Результаты">Результаты</a>
             <a href="#task-list" data-view="tasks" data-short="Задачи" title="Задачи">Задачи</a>
-            <a href="#artifact-list" data-view="artifacts" data-short="Рез." title="Результаты">Результаты</a>
-            <a href="#onboarding-list" data-view="help" data-short="Старт" title="Как начать">Как начать</a>
+            <a href="#agent-list" data-view="agents" data-short="Агенты" title="Агенты">Агенты</a>
             <a href="#agent-settings" data-view="settings" data-short="Настр." title="Настройки">Настройки</a>
           </nav>
           <button class="chip logout-wide" id="logout-btn">Выйти</button>
@@ -92,7 +91,7 @@
               <span></span>
             </button>
             <div>
-              <div class="eyebrow">Цифровой сотрудник</div>
+              <div class="eyebrow">Рабочий агент</div>
               <h2 id="workspace-title">—</h2>
               <p class="panel-subtitle" id="workspace-hint">—</p>
             </div>
@@ -104,7 +103,7 @@
               <section class="panel chat-panel" data-panel="chat">
                 <div class="panel-head">
                   <div>
-                    <div class="panel-title" id="profile-name">—</div>
+                    <div class="panel-title" id="profile-name">Что нужно сделать?</div>
                     <div class="panel-subtitle" id="profile-meta">—</div>
                     <div class="panel-subtitle" id="chat-subtitle">—</div>
                   </div>
@@ -117,27 +116,27 @@
                 <div class="tool-strip" id="agent-tools" aria-label="Инструменты агента"></div>
                 <div class="messages" id="messages" aria-label="История чата" role="log" aria-live="polite"></div>
                 <form class="composer" id="composer">
-                  <input id="message-input" type="text" placeholder="Дайте поручение или задайте вопрос" autocomplete="off" aria-label="Ввод сообщения">
-                  <button class="primary-btn" id="send-btn" type="button" aria-label="Отправить сообщение">Отправить</button>
+                  <input id="message-input" type="text" placeholder="Например: найди данные, сравни варианты и подготовь короткий итог" autocomplete="off" aria-label="Ввод цели для агента">
+                  <button class="primary-btn" id="send-btn" type="button" aria-label="Запустить агента">Запустить</button>
                 </form>
               </section>
 
               <aside class="stack-column">
                 <section class="panel today-panel" id="today-panel">
-                  <div class="panel-title">Сегодня</div>
+                  <div class="panel-title">Ход работы</div>
                   <div class="today-summary" id="today-summary"></div>
                   <div class="next-step-card" id="next-step-card"></div>
                   <div class="today-actions">
-                    <button class="primary-btn" id="new-mission-btn" type="button">Дать поручение</button>
-                    <button class="ghost-btn" id="new-task-btn" type="button">Новая задача</button>
+                    <button class="primary-btn" id="new-mission-btn" type="button">Новая цель</button>
+                    <button class="ghost-btn" id="new-task-btn" type="button">Запомнить задачу</button>
                   </div>
                 </section>
 
                 <section class="panel view-panel" data-panel="agents" aria-label="Агенты">
                   <div class="panel-head slim">
                     <div>
-                      <div class="panel-title">Команда</div>
-                      <div class="panel-subtitle">Каждый цифровой сотрудник ведет свой чат, поручения и материалы</div>
+                      <div class="panel-title">Агенты</div>
+                      <div class="panel-subtitle">Отдельные рабочие агенты под разные роли</div>
                     </div>
                     <button class="primary-btn" id="new-agent-btn" type="button">Создать</button>
                   </div>
@@ -147,8 +146,8 @@
                 <section class="panel view-panel" data-panel="missions" aria-label="Поручения">
                   <div class="panel-head slim">
                     <div>
-                      <div class="panel-title">Поручения</div>
-                      <div class="panel-subtitle">Автономная работа: цель, план, прогресс, результат</div>
+                      <div class="panel-title">Ход работы</div>
+                      <div class="panel-subtitle">Цели, которые агент выполняет сам: план, шаги, результат</div>
                     </div>
                     <button class="primary-btn" type="button" data-empty-mission>Создать</button>
                   </div>
@@ -159,7 +158,7 @@
                   <div class="panel-head slim">
                     <div>
                       <div class="panel-title">Задачи</div>
-                      <div class="panel-subtitle">То, что нужно не забыть или довести до конца</div>
+                      <div class="panel-subtitle">Ручные напоминания, которые не требуют автономной работы агента</div>
                     </div>
                     <button class="primary-btn" type="button" data-empty-task>Добавить</button>
                   </div>
@@ -170,13 +169,13 @@
                   <div class="panel-head slim">
                     <div>
                       <div class="panel-title">Результаты</div>
-                      <div class="panel-subtitle">Черновики, ответы и результаты помощника</div>
+                      <div class="panel-subtitle">Готовые материалы, ответы, файлы и изображения</div>
                     </div>
                   </div>
                   <div class="artifact-list" id="artifact-list"></div>
                 </section>
 
-                <section class="panel view-panel" data-panel="help">
+                <section class="panel view-panel hidden" data-panel="help">
                   <div class="panel-head slim">
                     <div>
                       <div class="panel-title">Как начать</div>

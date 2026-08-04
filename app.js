@@ -14,9 +14,9 @@ const fallbackWorkspaces = {
     id: 'support-agent',
     name: 'Алина',
     title: 'Личный рабочий агент',
-    mode: 'approve',
-    model: 'Рабочий агент',
-    quickActions: ['Найди свежую информацию в интернете', 'Сгенерируй изображение для ответа', 'Запусти поручение: разобрать тикет', 'Покажи статус поручений'],
+    mode: 'execute',
+    model: 'Автономный агент',
+    quickActions: ['Разбери тикет и подготовь готовый ответ', 'Найди свежую информацию и подготовь краткий вывод', 'Сгенерируй изображение и сохрани результат', 'Покажи, что сейчас в работе'],
     tasks: [],
     messages: [],
     agentConfig: { name: '', role: '', instructions: '', memoryNotes: [], setupDone: false },
@@ -27,9 +27,9 @@ const fallbackWorkspaces = {
     id: 'sales-agent',
     name: 'Дамир',
     title: 'Личный рабочий агент',
-    mode: 'approve',
-    model: 'Рабочий агент',
-    quickActions: ['Найди свежую информацию в интернете', 'Сгенерируй изображение для клиента', 'Запусти поручение: подготовить follow-up', 'Покажи статус поручений'],
+    mode: 'execute',
+    model: 'Автономный агент',
+    quickActions: ['Подготовь follow-up клиенту', 'Найди свежую информацию и подготовь краткий вывод', 'Сгенерируй изображение для клиента', 'Покажи, что сейчас в работе'],
     tasks: [],
     messages: [],
     agentConfig: { name: '', role: '', instructions: '', memoryNotes: [], setupDone: false },
@@ -40,7 +40,7 @@ const fallbackWorkspaces = {
 
 const onboardingSteps = [
   { title: 'Войти', text: 'Выбери свой рабочий аккаунт и введи пароль сотрудника.' },
-  { title: 'Дать цель', text: 'Запусти поручение: опиши результат, который агент должен подготовить автономно.' },
+  { title: 'Написать цель', text: 'Опишите результат обычным текстом: что проверить, сравнить, найти или подготовить.' },
   { title: 'Следить за планом', text: 'Агент разложит работу на шаги, покажет прогресс и текущий статус выполнения.' },
   { title: 'Забрать результат', text: 'Готовые черновики, ответы и рабочие результаты появляются в “Готовых материалах”.' }
 ];
@@ -54,16 +54,16 @@ const modeCopy = {
 
 const exampleRequests = [
   'Подготовь ответ клиенту по последнему тикету',
-  'Найди свежую информацию и дай короткий вывод',
-  'Запусти поручение: разобрать задачу и собрать план',
+  'Найди свежую информацию и подготовь краткий вывод',
+  'Разбери задачу и собери план действий',
   'Создай задачу: проверить доступы завтра утром'
 ];
 
 const quickActionLabels = [
-  { pattern: /интернет|свеж/i, label: 'Поиск' },
+  { pattern: /интернет|свеж/i, label: 'Найти данные' },
   { pattern: /изображ/i, label: 'Изображение' },
-  { pattern: /поручение|follow-up|тикет/i, label: 'Поручение' },
-  { pattern: /статус/i, label: 'Статус' }
+  { pattern: /follow-up|тикет|результат|план/i, label: 'Сделать работу' },
+  { pattern: /статус|работе/i, label: 'Что в работе' }
 ];
 
 const statusCopy = {
@@ -406,26 +406,26 @@ function nextStep(workspace) {
   const agentConfig = workspace.agentConfig || {};
   if (!agentConfig.setupDone) {
     return {
-      title: 'Сначала настройте помощника',
-      text: 'Укажите имя, роль и правила работы. После этого сотруднику проще понять, что агент делает сам, а где ждет подтверждения.',
-      action: 'Настроить',
-      view: 'settings'
+      title: 'Можно сразу писать цель',
+      text: 'Настройки не обязательны: агент уже умеет принять задачу, составить план и сохранить результат.',
+      action: 'Вставить пример',
+      intent: 'example'
     };
   }
   if (!(workspace.missions || []).length && !(workspace.tasks || []).length && !(workspace.artifacts || []).length) {
     return {
-      title: 'Лучший старт - первое поручение',
-      text: 'Поручение подходит для результата: план, черновик ответа, поиск, анализ или подготовка материала.',
-      action: 'Запустить поручение',
-      intent: 'mission'
+      title: 'Начните с цели',
+      text: 'Напишите, что нужно получить: ответ клиенту, анализ, поиск, план или материал.',
+      action: 'Вставить пример',
+      intent: 'example'
     };
   }
   const runningMissions = (workspace.missions || []).filter((mission) => mission.status === 'running').length;
   if (runningMissions) {
     return {
-      title: 'Есть поручение в работе',
-      text: 'Откройте раздел поручений, чтобы увидеть план, прогресс и связанный готовый материал.',
-      action: 'Открыть поручения',
+      title: 'Агент работает',
+      text: 'Откройте ход работы, чтобы увидеть план, инструменты и связанный результат.',
+      action: 'Открыть ход работы',
       view: 'missions'
     };
   }
@@ -439,7 +439,7 @@ function nextStep(workspace) {
   }
   return {
     title: 'Продолжайте из чата',
-    text: 'Напишите коротко, что нужно получить. Если нужен результат с планом, запускайте поручение.',
+    text: 'Напишите новую цель в чат. Агент сам решит, нужен ли план, поиск, файл или задача.',
     action: 'Вставить пример',
     intent: 'example'
   };
@@ -455,13 +455,13 @@ function renderNextStep(workspace) {
 }
 
 function openMissionPrompt() {
-  el.promptTitle.textContent = 'Новое поручение помощнику';
-  el.promptLabel.textContent = 'Какой результат нужно подготовить?';
+  el.promptTitle.textContent = 'Новая цель для агента';
+  el.promptLabel.textContent = 'Что нужно получить?';
   setPromptField(true);
-  el.promptTextarea.placeholder = 'Опишите цель, формат результата, ограничения и что считать готовым';
+  el.promptTextarea.placeholder = 'Например: найди информацию, сравни варианты и подготовь короткий итог';
   el.promptTextarea.value = '';
-  el.promptHelp.textContent = 'Поручение подходит для работы с результатом: план, анализ, черновик, поиск или материал.';
-  el.promptSubmit.textContent = 'Запустить поручение';
+  el.promptHelp.textContent = 'Агент сам разложит цель на шаги и сохранит результат.';
+  el.promptSubmit.textContent = 'Запустить агента';
   state.pendingTask = false;
   state.pendingMission = true;
   el.promptModal.showModal();
@@ -473,8 +473,8 @@ function openTaskPrompt() {
   setPromptField(false);
   el.promptInput.placeholder = 'Например: ответить клиенту по доступам';
   el.promptInput.value = '';
-  el.promptHelp.textContent = 'Задача - это напоминание или ручной следующий шаг. Для работы с результатом лучше поручение.';
-  el.promptSubmit.textContent = 'Добавить задачу';
+  el.promptHelp.textContent = 'Задача - это ручное напоминание. Для результата пишите цель агенту.';
+  el.promptSubmit.textContent = 'Запомнить';
   state.pendingTask = true;
   state.pendingMission = false;
   el.promptModal.showModal();
@@ -574,30 +574,30 @@ function renderWorkspace() {
   if (!state.currentUser || !workspace) return;
 
   el.sendBtn.disabled = state.sendingMessage;
-  el.sendBtn.textContent = state.sendingMessage ? 'Отправляем…' : 'Отправить';
+  el.sendBtn.textContent = state.sendingMessage ? 'Работаю…' : 'Запустить';
 
-  el.profileName.textContent = state.currentUser.name;
+  el.profileName.textContent = 'Напишите цель';
   const agentConfig = workspace.agentConfig || {};
   el.profileMeta.textContent = `${state.currentUser.title} · ${agentDisplayName(workspace)}`;
   el.workspaceTitle.textContent = `${agentDisplayName(workspace)} · ${workspace.title}`;
-  el.workspaceHint.textContent = 'Выбранный агент: отдельный чат, задачи, поручения и материалы.';
+  el.workspaceHint.textContent = 'Один вход: сотрудник пишет цель, агент сам планирует шаги и сохраняет результат.';
   const openTasks = workspace.tasks.filter((task) => task.status !== 'done').length;
   const runningMissions = (workspace.missions || []).filter((mission) => mission.status === 'running').length;
   const artifactCount = (workspace.artifacts || []).length;
-  el.topbarSummary.textContent = `${workspace.model} · ${modeLabel(workspace.mode)} · ${openTasks} открытые задачи`;
-  el.chatSubtitle.textContent = 'Чат - для быстрых вопросов. Поручение - для результата с планом и материалом.';
-  el.modeHelp.textContent = modeDescription(workspace.mode);
+  el.topbarSummary.textContent = `${workspace.model || 'Автономный агент'} · ${runningMissions} в работе · ${artifactCount} результатов`;
+  el.chatSubtitle.textContent = 'Опишите результат. Агент сам создаст план, выполнит шаги и покажет итог.';
+  el.modeHelp.textContent = 'Автономный режим включен по умолчанию.';
   el.todaySummary.innerHTML = `
-    <div><strong>${openTasks}</strong><span>открытые задачи</span></div>
-    <div><strong>${runningMissions}</strong><span>поручения в работе</span></div>
-    <div><strong>${artifactCount}</strong><span>готовые материалы</span></div>
+    <div><strong>${runningMissions}</strong><span>в работе</span></div>
+    <div><strong>${artifactCount}</strong><span>результаты</span></div>
+    <div><strong>${openTasks}</strong><span>задачи</span></div>
   `;
   renderNextStep(workspace);
   el.agentName.value = agentConfig.name || '';
   el.agentRole.value = agentConfig.role || '';
   el.agentInstructions.value = agentConfig.instructions || '';
 
-  const modes = ['answer', 'suggest', 'approve', 'execute'];
+  const modes = ['execute'];
   el.modeSwitch.innerHTML = modes.map((mode) => `
     <button class="mode-chip ${mode === workspace.mode ? 'active' : ''}" data-mode="${mode}" type="button" aria-pressed="${mode === workspace.mode}">${escapeHtml(modeLabel(mode))}</button>
   `).join('');
@@ -641,8 +641,8 @@ function renderWorkspace() {
     </article>
   `}).join('') : `
     <div class="empty-state">
-      <strong>Начните с понятного запроса</strong>
-      <p>Можно написать вопрос в чат или запустить поручение, если нужен готовый результат.</p>
+      <strong>Напишите первую цель</strong>
+      <p>Агент сам решит, какие шаги нужны: поиск, план, черновик, изображение или готовый материал.</p>
       <div class="empty-actions">
         ${exampleRequests.map((request) => `<button class="quick-chip" type="button" data-empty-request="${escapeHtml(request)}">${escapeHtml(request)}</button>`).join('')}
       </div>
@@ -666,7 +666,7 @@ function renderWorkspace() {
         <button type="button" data-task-status="done" data-task-id="${escapeHtml(task.id)}" aria-pressed="${task.status === 'done'}" aria-label="Пометить задачу ${escapeHtml(task.title)} как: ${statusCopy.done}">${statusCopy.done}</button>
       </div>
     </div>
-  `).join('') : '<div class="empty-state"><strong>Задач пока нет</strong><p>Задачи нужны для ручных следующих шагов. Если нужен готовый результат, запускайте поручение.</p><div class="empty-actions"><button class="quick-chip" type="button" data-empty-task>Добавить задачу</button><button class="quick-chip" type="button" data-empty-mission>Запустить поручение</button></div></div>';
+  `).join('') : '<div class="empty-state"><strong>Задач пока нет</strong><p>Задачи нужны только для ручных напоминаний. Для результата просто напишите цель агенту.</p><div class="empty-actions"><button class="quick-chip" type="button" data-empty-request="Разбери задачу и подготовь план действий">Написать цель</button><button class="quick-chip" type="button" data-empty-task>Запомнить задачу</button></div></div>';
 
   el.missionList.innerHTML = (workspace.missions || []).length ? (workspace.missions || []).map((mission) => `
     <div class="mission-item">
@@ -709,7 +709,7 @@ function renderWorkspace() {
       ` : ''}
       ${renderMissionHandoff(workspace, mission)}
     </div>
-  `).join('') : '<div class="empty-state"><strong>Поручений пока нет</strong><p>Поручение - это автономная работа помощника: цель, план, прогресс и результат.</p><div class="empty-actions"><button class="quick-chip" type="button" data-empty-mission>Запустить поручение</button></div></div>';
+  `).join('') : '<div class="empty-state"><strong>Агент еще не работал</strong><p>Напишите цель на рабочем столе. Здесь появятся план, шаги, инструменты и прогресс.</p><div class="empty-actions"><button class="quick-chip" type="button" data-empty-request="Подготовь рабочий результат с планом">Написать цель</button></div></div>';
 
   el.artifactList.innerHTML = (workspace.artifacts || []).length ? (workspace.artifacts || []).map((artifact) => `
     <article class="artifact-item">
@@ -723,12 +723,12 @@ function renderWorkspace() {
         <button type="button" data-artifact-task="${escapeHtml(artifact.id)}">Создать задачу</button>
       </div>
     </article>
-  `).join('') : '<div class="empty-state"><strong>Готовых материалов пока нет</strong><p>Здесь будут черновики, ответы, изображения и результаты поручений, которые можно раскрыть и скопировать.</p><div class="empty-actions"><button class="quick-chip" type="button" data-empty-mission>Создать первый материал</button></div></div>';
+  `).join('') : '<div class="empty-state"><strong>Результатов пока нет</strong><p>Готовые ответы, файлы и изображения появятся здесь после работы агента.</p><div class="empty-actions"><button class="quick-chip" type="button" data-empty-request="Подготовь первый рабочий результат">Написать цель</button></div></div>';
 
   const workflow = [
-    { label: 'Как работает помощник', value: modeLabel(workspace.mode) },
-    { label: 'Поручения', value: String((workspace.missions || []).length) },
-    { label: 'Открытые задачи', value: String(openTasks) },
+    { label: 'Режим', value: 'Выполняет сам' },
+    { label: 'В работе', value: String(runningMissions) },
+    { label: 'Задачи', value: String(openTasks) },
     { label: 'Результаты', value: String(artifactCount) }
   ];
 
@@ -987,9 +987,9 @@ async function createAgent(name) {
       id: state.currentUser.id + '-' + newId(),
       name: safeName,
       title: 'Личный рабочий агент',
-      mode: 'approve',
-      model: 'Рабочий агент',
-      quickActions: ['Найди свежую информацию в интернете', 'Сгенерируй изображение', 'Запусти поручение: подготовить результат', 'Покажи статус поручений'],
+      mode: 'execute',
+      model: 'Автономный агент',
+      quickActions: ['Найди свежую информацию и подготовь краткий вывод', 'Сгенерируй изображение и сохрани результат', 'Подготовь рабочий результат с планом', 'Покажи, что сейчас в работе'],
       tasks: [],
       messages: [],
       missions: [],
@@ -1218,7 +1218,7 @@ async function resetWorkspace() {
     workspace.missions = [];
     workspace.artifacts = [];
     workspace.agentConfig = { name: '', role: '', instructions: '', memoryNotes: [], setupDone: false };
-    workspace.mode = 'approve';
+    workspace.mode = 'execute';
     state.workspace = workspace;
     persistLocal();
   }
