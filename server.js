@@ -1201,8 +1201,9 @@ async function askOpenClawGateway(workspace, userText, agentFiles) {
     });
 
     if (!response.ok) {
-      console.warn('OpenClaw gateway request failed:', response.status, response.statusText);
-      gatewayLastError = 'HTTP ' + response.status;
+      const detail = await response.text().catch(() => '');
+      console.warn('OpenClaw gateway request failed:', response.status, response.statusText, detail.slice(0, 500));
+      gatewayLastError = ('HTTP ' + response.status + (detail ? ': ' + detail.replace(/\s+/g, ' ').trim().slice(0, 220) : '')).trim();
       gatewayLastCheckedAt = new Date().toISOString();
       return null;
     }

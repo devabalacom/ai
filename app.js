@@ -244,12 +244,20 @@ async function apiRequest(path, options = {}) {
   });
 
   if (!response.ok) {
-    let message = 'Request failed';
+    let message = 'HTTP ' + response.status;
     try {
-      const payload = await response.json();
-      if (payload && payload.error) message = String(payload.error);
+      const body = await response.text();
+      if (body) {
+        try {
+          const payload = JSON.parse(body);
+          if (payload && payload.error) message = String(payload.error);
+          else message = body.slice(0, 220);
+        } catch {
+          message = body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 220) || message;
+        }
+      }
     } catch {
-      // Keep the generic message for non-JSON errors.
+      // Keep the HTTP status when the error body cannot be read.
     }
     const error = new Error(message);
     error.status = response.status;
