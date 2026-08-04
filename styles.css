@@ -650,7 +650,7 @@ button, input, select {
   min-height: 0;
   height: clamp(620px, calc(100dvh - 180px), 860px);
   display: grid;
-  grid-template-rows: auto auto minmax(300px, 1fr) auto;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   gap: 14px;
   border-color: rgba(125, 211, 252, 0.18);
   background:
@@ -699,7 +699,7 @@ button, input, select {
 
 .quick-actions {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .mode-chip, .quick-chip, .tool-chip, .task-actions button, .artifact-actions button, .agent-actions button {
@@ -721,14 +721,14 @@ button, input, select {
   max-width: 100%;
 }
 
-.mode-chip, .quick-chip, .tool-chip {
+.mode-chip, .tool-chip {
   white-space: nowrap;
 }
 
 .quick-chip {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: anywhere;
   min-height: 44px;
   justify-content: flex-start;
 }

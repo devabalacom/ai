@@ -38,7 +38,7 @@
           <input id="password" type="password" placeholder="Пароль сотрудника" required>
         </label>
         <button type="submit" class="primary-btn">Войти</button>
-        <button type="button" class="ghost-btn demo-only" id="demo-fill">Войти в демо</button>
+        <button type="button" class="ghost-btn demo-only" id="demo-fill">Открыть демо</button>
         <div class="credential-grid demo-only" aria-label="Тестовые аккаунты">
           <div>
             <span>Support</span>
@@ -75,7 +75,7 @@
             <a class="active" href="#workspace-grid" data-view="chat" data-short="Старт" title="Рабочий стол">Рабочий стол</a>
             <a href="#mission-list" data-view="missions" data-short="Ход" title="Ход работы">Ход работы</a>
             <a href="#artifact-list" data-view="artifacts" data-short="Итог" title="Результаты">Результаты</a>
-            <a href="#task-list" data-view="tasks" data-short="Задачи" title="Задачи">Задачи</a>
+            <a href="#task-list" data-view="tasks" data-short="Память" title="Напоминания">Напоминания</a>
             <a href="#agent-list" data-view="agents" data-short="Агенты" title="Агенты">Агенты</a>
             <a href="#agent-settings" data-view="settings" data-short="Настр." title="Настройки">Настройки</a>
           </nav>
@@ -157,22 +157,22 @@
                 <section class="panel view-panel" data-panel="tasks" aria-label="Задачи">
                   <div class="panel-head slim">
                     <div>
-                      <div class="panel-title">Задачи</div>
-                      <div class="panel-subtitle">Ручные напоминания, которые не требуют автономной работы агента</div>
+                      <div class="panel-title">Напоминания</div>
+                      <div class="panel-subtitle">Ручные заметки, которые не требуют автономной работы агента</div>
                     </div>
-                    <button class="primary-btn" type="button" data-empty-task>Добавить</button>
+                    <button class="primary-btn" type="button" data-empty-task>Запомнить</button>
                   </div>
                   <div class="task-list" id="task-list" role="list"></div>
                 </section>
 
-                <section class="panel view-panel" data-panel="artifacts">
+                <section class="panel view-panel" data-panel="artifacts" aria-label="Результаты">
                   <div class="panel-head slim">
                     <div>
                       <div class="panel-title">Результаты</div>
                       <div class="panel-subtitle">Готовые материалы, ответы, файлы и изображения</div>
                     </div>
                   </div>
-                  <div class="artifact-list" id="artifact-list"></div>
+                  <div class="artifact-list" id="artifact-list" role="list"></div>
                 </section>
 
                 <section class="panel view-panel hidden" data-panel="help">
@@ -189,7 +189,7 @@
                   <div class="panel-head slim">
                     <div>
                       <div class="panel-title">Настройки помощника</div>
-                      <div class="panel-subtitle">Как помощник ведет себя перед действиями</div>
+                      <div class="panel-subtitle">Имя, роль и правила ответа агента</div>
                     </div>
                   </div>
                   <div class="workflow-grid" id="workflow-grid"></div>
@@ -221,7 +221,7 @@
   </main>
   <div class="sr-only" id="app-status" aria-live="polite"></div>
 
-  <dialog class="modal" id="prompt-modal">
+  <dialog class="modal" id="prompt-modal" aria-labelledby="prompt-title" aria-describedby="prompt-help">
     <form method="dialog" class="modal-card">
       <div class="panel-title" id="prompt-title">Новый элемент</div>
       <label>

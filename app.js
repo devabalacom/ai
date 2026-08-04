@@ -465,6 +465,7 @@ function openMissionPrompt() {
   state.pendingTask = false;
   state.pendingMission = true;
   el.promptModal.showModal();
+  el.promptTextarea.focus();
 }
 
 function openTaskPrompt() {
@@ -478,6 +479,7 @@ function openTaskPrompt() {
   state.pendingTask = true;
   state.pendingMission = false;
   el.promptModal.showModal();
+  el.promptInput.focus();
 }
 
 function openAgentPrompt() {
@@ -492,6 +494,7 @@ function openAgentPrompt() {
   state.pendingMission = false;
   state.pendingAgent = true;
   el.promptModal.showModal();
+  el.promptInput.focus();
 }
 
 function renderViewState() {
@@ -555,7 +558,7 @@ function renderAgentList(workspace) {
     const active = workspace && agent.id === workspace.id;
     const title = config.role || agent.title || 'Личный рабочий агент';
     return `
-      <article class="agent-item ${active ? 'active' : ''}">
+      <article class="agent-item ${active ? 'active' : ''}" role="listitem">
         <div>
           <strong>${escapeHtml(agentDisplayName(agent))}</strong>
           <p>${escapeHtml(title)}</p>
@@ -652,7 +655,7 @@ function renderWorkspace() {
   scrollMessagesToBottom();
 
   el.taskList.innerHTML = workspace.tasks.length ? workspace.tasks.map((task) => `
-    <div class="task-item">
+    <div class="task-item" role="listitem">
       <div class="task-top">
         <div>
           <div class="task-title">${escapeHtml(task.title)}</div>
@@ -666,14 +669,14 @@ function renderWorkspace() {
         <button type="button" data-task-status="done" data-task-id="${escapeHtml(task.id)}" aria-pressed="${task.status === 'done'}" aria-label="Пометить задачу ${escapeHtml(task.title)} как: ${statusCopy.done}">${statusCopy.done}</button>
       </div>
     </div>
-  `).join('') : '<div class="empty-state"><strong>Задач пока нет</strong><p>Задачи нужны только для ручных напоминаний. Для результата просто напишите цель агенту.</p><div class="empty-actions"><button class="quick-chip" type="button" data-empty-request="Разбери задачу и подготовь план действий">Написать цель</button><button class="quick-chip" type="button" data-empty-task>Запомнить задачу</button></div></div>';
+  `).join('') : '<div class="empty-state"><strong>Напоминаний пока нет</strong><p>Напоминания нужны только для ручных заметок. Для результата просто напишите цель агенту.</p><div class="empty-actions"><button class="quick-chip" type="button" data-empty-request="Разбери задачу и подготовь план действий">Написать цель</button><button class="quick-chip" type="button" data-empty-task>Запомнить</button></div></div>';
 
   el.missionList.innerHTML = (workspace.missions || []).length ? (workspace.missions || []).map((mission) => `
-    <div class="mission-item">
+    <div class="mission-item" role="listitem">
       <div class="mission-top">
         <div>
           <div class="task-title">${escapeHtml(mission.goal)}</div>
-          <div class="panel-subtitle">Run ${escapeHtml(String(mission.runId || mission.id || '').slice(0, 8))} · ${escapeHtml(mission.createdAt || 'сейчас')} · ${escapeHtml(statusCopy[mission.status] || mission.status)}</div>
+          <div class="panel-subtitle">Создано ${escapeHtml(mission.createdAt || 'сейчас')} · ${escapeHtml(statusCopy[mission.status] || mission.status)}</div>
         </div>
         ${statusBadge(mission.status)}
       </div>
@@ -697,7 +700,7 @@ function renderWorkspace() {
       </div>
       ${(mission.events || []).length ? `
         <details class="mission-events">
-          <summary>Ход работы</summary>
+          <summary>Журнал событий</summary>
           ${mission.events.map((event) => `
             <div class="mission-event">
               <span>${escapeHtml(event.time || '')}</span>
@@ -712,13 +715,13 @@ function renderWorkspace() {
   `).join('') : '<div class="empty-state"><strong>Агент еще не работал</strong><p>Напишите цель на рабочем столе. Здесь появятся план, шаги, инструменты и прогресс.</p><div class="empty-actions"><button class="quick-chip" type="button" data-empty-request="Подготовь рабочий результат с планом">Написать цель</button></div></div>';
 
   el.artifactList.innerHTML = (workspace.artifacts || []).length ? (workspace.artifacts || []).map((artifact) => `
-    <article class="artifact-item">
+    <article class="artifact-item" role="listitem">
       <div class="artifact-meta"><span>${escapeHtml(artifactTypeLabel(artifact.type))}</span></div>
       <strong>${escapeHtml(artifact.title)}</strong>
       <p>${escapeHtml(artifact.summary)}</p>
       ${renderArtifactBody(artifact)}
       <div class="artifact-actions">
-        <button type="button" data-artifact-download="${escapeHtml(artifact.id)}">Скачать файл</button>
+        <button type="button" data-artifact-download="${escapeHtml(artifact.id)}">Экспорт</button>
         <button type="button" data-artifact-copy="${escapeHtml(artifact.id)}">Скопировать</button>
         <button type="button" data-artifact-task="${escapeHtml(artifact.id)}">Создать задачу</button>
       </div>
@@ -728,7 +731,7 @@ function renderWorkspace() {
   const workflow = [
     { label: 'Режим', value: 'Выполняет сам' },
     { label: 'В работе', value: String(runningMissions) },
-    { label: 'Задачи', value: String(openTasks) },
+    { label: 'Напоминания', value: String(openTasks) },
     { label: 'Результаты', value: String(artifactCount) }
   ];
 
@@ -866,6 +869,10 @@ function generateReply(workspace, message) {
 }
 
 async function detectBackend() {
+  if (DEMO_MODE) {
+    state.apiAvailable = false;
+    return;
+  }
   try {
     const response = await fetch((API_BASE ? API_BASE : '') + '/api/health', { cache: 'no-store', credentials: 'include' });
     state.apiAvailable = response.ok;
@@ -1315,10 +1322,12 @@ function bindEvents() {
     }
   });
 
-  el.demoFill.addEventListener('click', () => {
+  el.demoFill.addEventListener('click', async () => {
     el.userSelect.value = demoUsers[0].id;
     el.password.value = demoUsers[0].password;
     clearPasswordError();
+    await loginUser(demoUsers[0].id, demoUsers[0].password);
+    render();
   });
 
   el.promptCancel?.addEventListener('click', () => {
