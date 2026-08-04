@@ -19,6 +19,8 @@ const OPENCLAW_GATEWAY_TOKEN = process.env.OPENCLAW_GATEWAY_TOKEN || '';
 const OPENCLAW_GATEWAY_PASSWORD = process.env.OPENCLAW_GATEWAY_PASSWORD || '';
 const OPENCLAW_GATEWAY_TIMEOUT_MS = Number(process.env.OPENCLAW_GATEWAY_TIMEOUT_MS || 120000);
 const OPENCLAW_MODEL = process.env.OPENCLAW_MODEL || 'openclaw/default';
+const OPENCLAW_GATEWAY_REQUIRED = process.env.OPENCLAW_GATEWAY_REQUIRED !== 'false';
+const OPENCLAW_SESSION_PREFIX = process.env.OPENCLAW_SESSION_PREFIX || 'agenthub';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1';
 const OPENAI_IMAGE_SIZE = process.env.OPENAI_IMAGE_SIZE || '1024x1024';
@@ -72,6 +74,23 @@ function agentBrainConfigured() {
 
 function agentBrainAuthenticated() {
   return Boolean(OPENCLAW_GATEWAY_TOKEN || OPENCLAW_GATEWAY_PASSWORD);
+}
+
+function getOpenClawSessionKey(workspace) {
+  return OPENCLAW_SESSION_PREFIX + ':' + workspace.id;
+}
+
+function openClawUnavailableMessage() {
+  if (!agentBrainConfigured()) return 'OpenClaw Gateway не настроен: нужен OPENCLAW_GATEWAY_URL.';
+  if (!agentBrainAuthenticated()) return 'OpenClaw Gateway не авторизован: нужен OPENCLAW_GATEWAY_TOKEN или OPENCLAW_GATEWAY_PASSWORD.';
+  return 'OpenClaw Gateway сейчас не отвечает' + (gatewayLastError ? ': ' + gatewayLastError : '.');
+}
+
+function assertOpenClawReadyForWork() {
+  if (!OPENCLAW_GATEWAY_REQUIRED) return;
+  if (!agentBrainConfigured() || !agentBrainAuthenticated()) {
+    throw httpError(503, openClawUnavailableMessage());
+  }
 }
 
 function isSecureRequest(req) {
@@ -316,6 +335,12 @@ function sendError(res, fallbackStatus, fallbackCode, error) {
     return;
   }
   sendJson(res, fallbackStatus, { error: fallbackCode });
+}
+
+function httpError(statusCode, message) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
 }
 
 function asyncHandler(req, res, handler) {
@@ -756,6 +781,7 @@ function missionSourcesBlock(search) {
 }
 
 async function executeMission(workspace, result, agentFiles) {
+  assertOpenClawReadyForWork();
   const mission = result.mission;
   const artifact = result.artifact;
   const goal = mission.goal;
@@ -802,6 +828,13 @@ async function executeMission(workspace, result, agentFiles) {
   refreshMissionProgress(mission);
   setMissionToolStatus(mission, 'artifact', 'running');
   const gatewayDraft = await askOpenClawGateway(workspace, 'Подготовь итоговый рабочий результат по поручению: ' + goal + missionSourcesBlock(search), agentFiles);
+  if (!gatewayDraft && OPENCLAW_GATEWAY_REQUIRED) {
+    setMissionToolStatus(mission, 'artifact', 'failed');
+    setMissionStepStatus(mission, 'artifact', 'failed', openClawUnavailableMessage());
+    addMissionEvent(mission, 'OpenClaw Gateway недоступен', openClawUnavailableMessage());
+    refreshMissionProgress(mission);
+    throw httpError(503, openClawUnavailableMessage());
+  }
   const draft = gatewayDraft || ('Не смог подготовить полноценный итог: модель агента/gateway не вернула ответ. ' + (gatewayLastError ? 'Ошибка: ' + gatewayLastError + '.' : 'Проверь runtime-настройки gateway.') + missionSourcesBlock(search));
   artifact.summary = mission.status === 'failed' ? 'Частичный результат: часть инструментов не сработала.' : 'Готовый результат автономного поручения.';
   artifact.content = draft;
@@ -1145,7 +1178,7 @@ async function askOpenClawGateway(workspace, userText, agentFiles) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), OPENCLAW_GATEWAY_TIMEOUT_MS);
   const headers = { 'Content-Type': 'application/json' };
-  headers['x-openclaw-session-key'] = 'agenthub:' + workspace.id;
+  headers['x-openclaw-session-key'] = getOpenClawSessionKey(workspace);
   headers['x-openclaw-message-channel'] = 'agenthub';
   if (OPENCLAW_GATEWAY_TOKEN) {
     headers.Authorization = 'Bearer ' + OPENCLAW_GATEWAY_TOKEN;
@@ -1200,6 +1233,7 @@ async function answerWorkspaceMessage(workspace, userText, agentFiles) {
     rememberWorkspaceNote(workspace, memoryNote);
     return { text: 'Запомнил: ' + memoryNote };
   }
+  assertOpenClawReadyForWork();
   if (intent === 'image') {
     const artifact = await buildImageArtifact(workspace, userText, agentFiles);
     if (!artifact) {
@@ -1232,6 +1266,7 @@ async function answerWorkspaceMessage(workspace, userText, agentFiles) {
   }
   const reply = await askOpenClawGateway(workspace, userText, agentFiles);
   if (!reply) {
+    if (OPENCLAW_GATEWAY_REQUIRED) throw httpError(503, openClawUnavailableMessage());
     return { text: safeFallbackReply(workspace, intent) };
   }
   return { text: sanitizeAgentReply(reply, workspace, intent) };
@@ -1510,6 +1545,8 @@ async function main() {
         agentBrainLastCheckedAt: gatewayLastCheckedAt,
         agentBrainTimeoutMs: OPENCLAW_GATEWAY_TIMEOUT_MS,
         agentBrainModel: OPENCLAW_MODEL,
+        agentBrainRequired: OPENCLAW_GATEWAY_REQUIRED,
+        agentBrainSessionPrefix: OPENCLAW_SESSION_PREFIX,
         imageGenerationConfigured: Boolean(OPENAI_API_KEY)
       });
     }

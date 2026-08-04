@@ -29,9 +29,10 @@ Workflow layer:
 - The backend now uses OpenClaw workflow files per user.
 - The agent brain is OpenClaw Gateway, expected to run on the same VPS as the app.
 - AgentHub handles employee login/accounts; authenticated users send work to OpenClaw through the backend.
+- Each AgentHub workspace maps to a dedicated OpenClaw session key: `OPENCLAW_SESSION_PREFIX:<workspace-id>`. Do not point employees at Joni's personal/main OpenClaw session; keep product sessions isolated per employee/agent.
 - If OPENCLAW_GATEWAY_URL is set, the backend can call an OpenClaw Gateway.
 - OPENCLAW_MODEL selects the model exposed by OpenClaw Gateway; use it for the OpenAI-backed model.
-- If no gateway is configured, the backend falls back to local workflow logic so chat and поручения still work.
+- By default `OPENCLAW_GATEWAY_REQUIRED=true`: if Gateway is missing or unavailable, AgentHub returns a clear 503 instead of pretending a local/template agent completed the work. Set it to `false` only for local demo fallback.
 
 Optional environment variables:
 - WORKFLOW_PROVIDER (default: openclaw)
@@ -39,6 +40,8 @@ Optional environment variables:
 - OPENCLAW_GATEWAY_TOKEN
 - OPENCLAW_GATEWAY_PASSWORD
 - OPENCLAW_MODEL (default: openclaw/default)
+- OPENCLAW_GATEWAY_REQUIRED (default: true)
+- OPENCLAW_SESSION_PREFIX (default: agenthub)
 - OPENAI_API_KEY (required for real image generation)
 - OPENAI_IMAGE_MODEL (default: gpt-image-1)
 - OPENAI_IMAGE_SIZE (default: 1024x1024)

@@ -244,7 +244,14 @@ async function apiRequest(path, options = {}) {
   });
 
   if (!response.ok) {
-    const error = new Error('Request failed');
+    let message = 'Request failed';
+    try {
+      const payload = await response.json();
+      if (payload && payload.error) message = String(payload.error);
+    } catch {
+      // Keep the generic message for non-JSON errors.
+    }
+    const error = new Error(message);
     error.status = response.status;
     if (response.status === 401 && !allowUnauthorized) recoverUnauthorized();
     throw error;
@@ -1128,11 +1135,11 @@ async function sendMessage(text) {
   } catch (error) {
     hideTypingIndicator();
     state.failedDraft = { text: safeText, messageId: optimisticMessageId };
-    addLocalMessage(workspace, 'agent', 'Не удалось получить ответ от сервера. Текст сохранен здесь, его можно скопировать и отправить повторно: «' + safeText + '»', 'Система');
+    addLocalMessage(workspace, 'agent', 'Не удалось получить ответ от OpenClaw. Причина: ' + (error.message || 'сервер недоступен') + '. Текст сохранен здесь, его можно отправить повторно: «' + safeText + '»', 'Система');
     state.workspace = workspace;
     persistLocal();
     render();
-    alert('Не удалось отправить сообщение. Попробуй еще раз.');
+    alert(error.message || 'Не удалось отправить сообщение. Попробуй еще раз.');
   } finally {
     hideTypingIndicator();
     state.sendingMessage = false;
@@ -1163,12 +1170,16 @@ async function createMission(goal) {
   const safeGoal = String(goal || '').trim();
   if (!safeGoal) return;
   if (state.apiAvailable) {
-    const result = await apiRequest('/api/missions', {
-      method: 'POST',
-      body: JSON.stringify({ goal: safeGoal })
-    });
-    state.workspace = result.workspace;
-    replaceAgentInState(state.workspace);
+    try {
+      const result = await apiRequest('/api/missions', {
+        method: 'POST',
+        body: JSON.stringify({ goal: safeGoal })
+      });
+      state.workspace = result.workspace;
+      replaceAgentInState(state.workspace);
+    } catch (error) {
+      alert(error.message || 'Не удалось запустить поручение.');
+    }
   } else {
     const workspace = currentWorkspace();
     const result = startLocalMission(workspace, safeGoal);

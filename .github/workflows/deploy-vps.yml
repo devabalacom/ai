@@ -34,6 +34,8 @@ jobs:
           OPENAI_IMAGE_SIZE: ${{ vars.OPENAI_IMAGE_SIZE || '1024x1024' }}
           OPENCLAW_GATEWAY_URL: ${{ vars.OPENCLAW_GATEWAY_URL }}
           OPENCLAW_MODEL: ${{ vars.OPENCLAW_MODEL || 'openclaw/default' }}
+          OPENCLAW_GATEWAY_REQUIRED: ${{ vars.OPENCLAW_GATEWAY_REQUIRED || 'true' }}
+          OPENCLAW_SESSION_PREFIX: ${{ vars.OPENCLAW_SESSION_PREFIX || 'agenthub' }}
           OPENCLAW_GATEWAY_TOKEN: ${{ secrets.OPENCLAW_GATEWAY_TOKEN }}
           OPENCLAW_GATEWAY_PASSWORD: ${{ secrets.OPENCLAW_GATEWAY_PASSWORD }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
@@ -51,6 +53,8 @@ jobs:
           existing_openai_image_size="$(read_env OPENAI_IMAGE_SIZE)"
           existing_gateway_url="$(read_env OPENCLAW_GATEWAY_URL)"
           existing_openclaw_model="$(read_env OPENCLAW_MODEL)"
+          existing_gateway_required="$(read_env OPENCLAW_GATEWAY_REQUIRED)"
+          existing_session_prefix="$(read_env OPENCLAW_SESSION_PREFIX)"
           existing_gateway_token="$(read_env OPENCLAW_GATEWAY_TOKEN)"
           existing_gateway_password="$(read_env OPENCLAW_GATEWAY_PASSWORD)"
           existing_postgres_password="$(read_env POSTGRES_PASSWORD)"
@@ -61,6 +65,8 @@ jobs:
             printf 'OPENAI_IMAGE_SIZE=%s\n' "${OPENAI_IMAGE_SIZE:-${existing_openai_image_size:-1024x1024}}"
             printf 'OPENCLAW_GATEWAY_URL=%s\n' "${OPENCLAW_GATEWAY_URL:-$existing_gateway_url}"
             printf 'OPENCLAW_MODEL=%s\n' "${OPENCLAW_MODEL:-${existing_openclaw_model:-openclaw/default}}"
+            printf 'OPENCLAW_GATEWAY_REQUIRED=%s\n' "${OPENCLAW_GATEWAY_REQUIRED:-${existing_gateway_required:-true}}"
+            printf 'OPENCLAW_SESSION_PREFIX=%s\n' "${OPENCLAW_SESSION_PREFIX:-${existing_session_prefix:-agenthub}}"
             printf 'OPENCLAW_GATEWAY_TOKEN=%s\n' "${OPENCLAW_GATEWAY_TOKEN:-$existing_gateway_token}"
             printf 'OPENCLAW_GATEWAY_PASSWORD=%s\n' "${OPENCLAW_GATEWAY_PASSWORD:-$existing_gateway_password}"
             printf 'POSTGRES_PASSWORD=%s\n' "${POSTGRES_PASSWORD:-$existing_postgres_password}"
